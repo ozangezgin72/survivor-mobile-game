@@ -48,6 +48,7 @@ export default class BuildMenu {
     this.ghostSprite = null;
     this.hasManuallyPositioned = false;
     this.buttons = [];
+    this.lastDisplayedPowerLevel = null;
 
     this.createBar();
     this.createButtons();
@@ -60,8 +61,13 @@ export default class BuildMenu {
     this.scene.events.on(GameEvents.PLAYER_GOLD_CHANGED, this.handleGoldChanged);
   }
 
-  /** Hayalet henüz elle konumlandırılmadıysa oyuncuyu takip etmeye devam eder */
+  /**
+   * Hayalet henüz elle konumlandırılmadıysa oyuncuyu takip eder.
+   * Chunk gücüne göre buton maliyetlerini oyuncu konumu değiştikçe günceller.
+   */
   update() {
+    this.refreshDynamicCostsIfNeeded();
+
     if (!this.armedBuildingClass || this.hasManuallyPositioned || !this.ghostSprite) {
       return;
     }
@@ -72,6 +78,18 @@ export default class BuildMenu {
 
     this.ghostSprite.setPosition(x, y);
     this.updateGhostValidity(x, y);
+  }
+
+  /** Oyuncu başka bir chunk'a geçince menü fiyatlarını yeniler */
+  refreshDynamicCostsIfNeeded() {
+    const powerLevel = this.buildingSystem.getPowerLevelAt(this.player.x, this.player.y);
+
+    if (powerLevel === this.lastDisplayedPowerLevel) {
+      return;
+    }
+
+    this.lastDisplayedPowerLevel = powerLevel;
+    this.refreshAllButtonStates();
   }
 
   // --- Bar ve butonlar ---
@@ -181,7 +199,10 @@ export default class BuildMenu {
 
   /** Yetersiz altın -> soluk/gri görünüm; şu an seçili olan bina -> sarı çerçeve ile vurgulanır */
   refreshButtonState(button) {
-    const affordable = this.buildingSystem.canAfford(button.BuildingClass);
+    const cost = this.buildingSystem.getBuildingCostAt(button.BuildingClass, this.player.x, this.player.y);
+    button.costText.setText(`${cost}`);
+
+    const affordable = this.buildingSystem.canAfford(button.BuildingClass, this.player.x, this.player.y);
     const armed = this.armedBuildingClass === button.BuildingClass;
 
     const alpha = affordable ? 1 : 0.4;

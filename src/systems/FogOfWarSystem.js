@@ -10,11 +10,12 @@ import {
   CHUNK_RESOURCE_NODES_PER_CHUNK,
   CHUNK_NODE_EDGE_MARGIN,
 } from '../config/Constants.js';
+import { getChunkPowerLevel } from '../utils/ChunkPower.js';
 
 /**
  * Fog of War / harita genişletme sistemi.
  *
- * Harita CHUNK_SIZE x CHUNK_SIZE'lık kare bölgelere (chunk) bölünür (4000/800 -> 5x5 = 25
+ * Harita CHUNK_SIZE x CHUNK_SIZE'lık kare bölgelere (chunk) bölünür (7200/800 -> 9x9 = 81
  * chunk). Başta sadece oyuncunun spawn olduğu merkez chunk açık (unlocked); gerisi sisli
  * (locked). Sadece açık bir chunk'a BİTİŞİK olan chunk'lar açılabilir - bu, haritanın
  * rastgele uzak bir köşeden değil, organik olarak (komşu komşu) büyümesini sağlar.
@@ -189,6 +190,24 @@ export default class FogOfWarSystem {
   isPositionUnlocked(x, y) {
     const chunk = this.getChunkAt(x, y);
     return Boolean(chunk && chunk.isUnlocked);
+  }
+
+  /**
+   * Açılmış chunk'lar arasından en yüksek güç seviyesi.
+   * Bina yükseltme tavanı: oyuncu bu seviyeye kadar kademeli upgrade yapabilir.
+   */
+  getMaxUnlockedPowerLevel() {
+    let maxPower = 0;
+
+    for (const chunk of this.chunks) {
+      if (!chunk.isUnlocked) {
+        continue;
+      }
+
+      maxPower = Math.max(maxPower, getChunkPowerLevel(chunk.col, chunk.row));
+    }
+
+    return maxPower;
   }
 
   destroy() {

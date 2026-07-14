@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { GameEvents } from '../config/Events.js';
-import { HUD_MARGIN_X, HUD_MARGIN_Y, HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT, GOLD_ICON_RADIUS } from '../config/Constants.js';
+import { HUD_MARGIN_X, HUD_MARGIN_Y, HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT, GOLD_ICON_RADIUS, MINIMAP_WIDTH, MINIMAP_MARGIN } from '../config/Constants.js';
 import GameOverScreen from './GameOverScreen.js';
 
 /**
@@ -19,6 +19,7 @@ export default class HUD {
     this.createHealthBar();
     this.createGoldCounter();
     this.createResourceCounter();
+    this.createMuteButton();
 
     this.handleHealthChanged = this.handleHealthChanged.bind(this);
     this.handleGoldChanged = this.handleGoldChanged.bind(this);
@@ -115,6 +116,49 @@ export default class HUD {
     this.resourceText.setDepth(1000);
   }
 
+  /** Minimap'in solunda küçük ses aç/kapa butonu */
+  createMuteButton() {
+    const size = 36;
+    const x = this.scene.scale.width - MINIMAP_MARGIN - MINIMAP_WIDTH - size - 12;
+    const y = HUD_MARGIN_Y + size / 2;
+
+    this.muteButtonBg = this.scene.add.rectangle(x, y, size, size, 0x000000, 0.55);
+    this.muteButtonBg.setStrokeStyle(2, 0xffffff, 0.75);
+    this.muteButtonBg.setScrollFactor(0);
+    this.muteButtonBg.setDepth(1000);
+    this.muteButtonBg.setInteractive({ useHandCursor: true });
+
+    this.muteButtonText = this.scene.add.text(x, y, 'Ses', {
+      fontSize: '12px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+    });
+    this.muteButtonText.setOrigin(0.5, 0.5);
+    this.muteButtonText.setScrollFactor(0);
+    this.muteButtonText.setDepth(1001);
+
+    this.muteButtonBg.on('pointerdown', (pointer) => {
+      pointer.event?.stopPropagation?.();
+      const audio = this.scene.audioSystem;
+      if (!audio) {
+        return;
+      }
+      const muted = audio.toggleMute();
+      this.refreshMuteButton(muted);
+    });
+
+    this.refreshMuteButton(this.scene.audioSystem?.muted ?? false);
+  }
+
+  refreshMuteButton(muted) {
+    if (!this.muteButtonText || !this.muteButtonBg) {
+      return;
+    }
+    this.muteButtonText.setText(muted ? 'Kapalı' : 'Ses');
+    this.muteButtonText.setColor(muted ? '#ef9a9a' : '#ffffff');
+    this.muteButtonBg.setFillStyle(muted ? 0x4a1515 : 0x000000, 0.55);
+  }
+
   handleHealthChanged(currentHealth, maxHealth) {
     const ratio = Phaser.Math.Clamp(currentHealth / maxHealth, 0, 1);
 
@@ -172,6 +216,13 @@ export default class HUD {
   }
 
   handleResize() {
+    if (this.muteButtonBg && this.muteButtonText) {
+      const size = 36;
+      const x = this.scene.scale.width - MINIMAP_MARGIN - MINIMAP_WIDTH - size - 12;
+      const y = HUD_MARGIN_Y + size / 2;
+      this.muteButtonBg.setPosition(x, y);
+      this.muteButtonText.setPosition(x, y);
+    }
     this.gameOverScreen.repositionForNewScale();
   }
 
@@ -182,6 +233,8 @@ export default class HUD {
     this.scene.events.off(GameEvents.PLAYER_RESOURCES_CHANGED, this.handleResourcesChanged);
     this.scene.events.off(GameEvents.PLAYER_DIED, this.handlePlayerDied);
     this.scene.events.off(GameEvents.PLAYER_LEVEL_UP, this.handleLevelUp);
+    this.muteButtonBg?.destroy();
+    this.muteButtonText?.destroy();
     this.gameOverScreen.destroy();
   }
 }

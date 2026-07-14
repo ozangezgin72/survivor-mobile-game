@@ -55,7 +55,9 @@ export default class SaveSystem {
           x: building.x,
           y: building.y,
           health: building.health,
-          upgradeLevel: building.level,
+          currentPowerLevel: building.currentPowerLevel,
+          // Eski kayıt uyumu
+          upgradeLevel: building.currentPowerLevel,
         })),
       savedAt: Date.now(),
     };

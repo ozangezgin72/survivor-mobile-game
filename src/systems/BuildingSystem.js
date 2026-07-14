@@ -8,6 +8,7 @@ import {
   WORLD_WIDTH,
   WORLD_HEIGHT,
 } from '../config/Constants.js';
+import { getChunkCostMultiplier, getPowerLevelAt } from '../utils/ChunkPower.js';
 
 /**
  * Yerleştirilmiş tüm binaların (kule/duvar/kaynak çıkarma) yaşam döngüsünü ve
@@ -21,6 +22,9 @@ import {
  * ResourceSystem -> FogOfWarSystem -> (ilk chunk'ı doldurmak için) ResourceSystem, ve
  * BuildingSystem -> FogOfWarSystem bağımlılıkları dairesel bir kurulum sırası yaratıyor;
  * gecikmeli atama bu döngüyü kırmanın en basit yolu.
+ *
+ * Chunk gücü: yerleştirme konumuna göre maliyet artar; bina statları Building constructor'da
+ * aynı powerLevel ile ölçeklenir.
  */
 export default class BuildingSystem {
   constructor(scene, player) {
@@ -36,13 +40,13 @@ export default class BuildingSystem {
     this.nearestUpgradeableBuilding = this.findNearestUpgradeableBuilding();
   }
 
-  /** Oyuncuya en yakın, yükseltilebilir (canUpgrade()=true) binayı bulur - UpgradePrompt bunu okur */
+  /** Oyuncuya en yakın, güç yükseltmesi yapılabilir (veya max'ta) bina — UpgradePrompt okur */
   findNearestUpgradeableBuilding() {
     let nearest = null;
     let nearestDistance = BUILDING_UPGRADE_PROMPT_DISTANCE;
 
     for (const building of this.buildings) {
-      if (!building.canUpgrade()) {
+      if (!building.isAlive || building.baseUpgradeCost <= 0) {
         continue;
       }
 
@@ -60,12 +64,14 @@ export default class BuildingSystem {
   /** UpgradePrompt tarafından çağrılır. @returns {boolean} yükseltme başarılı oldu mu */
   tryUpgradeNearestBuilding() {
     const building = this.nearestUpgradeableBuilding;
+    const maxPower = this.fogOfWarSystem?.getMaxUnlockedPowerLevel?.() ?? 0;
 
-    if (!building) {
+    if (!building || !building.canUpgrade(maxPower)) {
       return false;
     }
 
-    const paid = this.player.spendResources(building.upgradeCost);
+    const cost = building.getNextUpgradeCost();
+    const paid = this.player.spendResources(cost);
 
     if (!paid) {
       return false;
@@ -77,9 +83,28 @@ export default class BuildingSystem {
     return true;
   }
 
-  /** @param {typeof import('../entities/buildings/Building.js').default} BuildingClass */
-  canAfford(BuildingClass) {
-    return this.player.canAfford(BuildingClass.cost);
+  getPowerLevelAt(x, y) {
+    return getPowerLevelAt(this.fogOfWarSystem, x, y);
+  }
+
+  /**
+   * Chunk gücüne göre dinamik bina maliyeti.
+   * finalCost = baseCost * (1 + powerLevel * CHUNK_POWER_COST_MULTIPLIER_PER_LEVEL)
+   */
+  getBuildingCostAt(BuildingClass, x, y) {
+    const powerLevel = this.getPowerLevelAt(x, y);
+    const multiplier = getChunkCostMultiplier(powerLevel);
+
+    return Math.max(1, Math.round(BuildingClass.cost * multiplier));
+  }
+
+  /**
+   * @param {typeof import('../entities/buildings/Building.js').default} BuildingClass
+   * @param {number} [x] - verilmezse oyuncu konumu (menü fiyatı için)
+   * @param {number} [y]
+   */
+  canAfford(BuildingClass, x = this.player.x, y = this.player.y) {
+    return this.player.canAfford(this.getBuildingCostAt(BuildingClass, x, y));
   }
 
   /** Bu dünya koordinatına yerleştirme geçerli mi? (dünya dışı / sisli / oyuncuya çok yakın / bina üstüne bina) */
@@ -112,7 +137,8 @@ export default class BuildingSystem {
       return false;
     }
 
-    const paid = this.player.spendGold(BuildingClass.cost);
+    const cost = this.getBuildingCostAt(BuildingClass, x, y);
+    const paid = this.player.spendGold(cost);
 
     if (!paid) {
       return false;
@@ -127,16 +153,16 @@ export default class BuildingSystem {
   }
 
   /**
-   * Kayıttan bina geri yükler: altın harcamaz, isteğe bağlı seviye/can uygular.
+   * Kayıttan bina geri yükler: altın harcamaz; currentPowerLevel konum gücünden yüksekse ayarlanır.
    * @param {typeof import('../entities/buildings/Building.js').default} BuildingClass
-   * @param {{ health?: number, upgradeLevel?: number }} [options]
+   * @param {{ health?: number, currentPowerLevel?: number, upgradeLevel?: number }} [options]
    */
   restoreBuilding(BuildingClass, x, y, options = {}) {
     const building = new BuildingClass(this.scene, x, y);
-    const targetLevel = options.upgradeLevel ?? 1;
+    const targetPower = options.currentPowerLevel ?? options.upgradeLevel ?? building.currentPowerLevel;
 
-    while (building.level < targetLevel && building.canUpgrade()) {
-      building.upgrade();
+    if (targetPower !== building.currentPowerLevel) {
+      building.setPowerLevel(targetPower, { fillHealth: true });
     }
 
     if (typeof options.health === 'number') {

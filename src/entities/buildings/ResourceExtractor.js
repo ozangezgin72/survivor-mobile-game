@@ -5,15 +5,12 @@ import {
   RESOURCE_EXTRACTOR_RADIUS,
   RESOURCE_EXTRACTOR_MULTIPLIER,
   RESOURCE_EXTRACTOR_UPGRADE_COST,
-  RESOURCE_EXTRACTOR_UPGRADE_GATHER_MULTIPLIER,
-  RESOURCE_EXTRACTOR_UPGRADE_RADIUS_MULTIPLIER,
 } from '../../config/Constants.js';
+import { getChunkStatMultiplier } from '../../utils/ChunkPower.js';
 
 /**
- * Kaynak çıkarma binası: kendisi idle/otomatik üretim yapmaz (bekleme süresi/idle
- * mekanik yok prensibi). Bunun yerine, etkiRadius'u içindeki kaynak node'larına
- * oyuncu gidip TOPLADIĞINDA toplama hızını gatherMultiplier ile çarpar
- * (bkz. ResourceSystem.getGatherMultiplier). Yani hâlâ aktif oynanış gerektirir.
+ * Kaynak çıkarma binası: idle üretim yok; yakındaki node'lardan toplama hızını artırır.
+ * Chunk gücü yükseldikçe health + gatherMultiplier + effectRadius ölçeklenir.
  */
 export default class ResourceExtractor extends Building {
   static id = 'resource-extractor';
@@ -31,25 +28,17 @@ export default class ResourceExtractor extends Building {
       upgradeCost: RESOURCE_EXTRACTOR_UPGRADE_COST,
     });
 
-    this.effectRadius = RESOURCE_EXTRACTOR_RADIUS;
-    this.gatherMultiplier = RESOURCE_EXTRACTOR_MULTIPLIER;
+    this.baseEffectRadius = RESOURCE_EXTRACTOR_RADIUS;
+    this.baseGatherMultiplier = RESOURCE_EXTRACTOR_MULTIPLIER;
+    this.onPowerLevelApplied(getChunkStatMultiplier(this.currentPowerLevel));
   }
 
-  /**
-   * attackDamage/attackRange'i yok, bu yüzden base Building.upgrade()'in yaptığı çarpma
-   * bu bina için anlamsız - onun yerine gatherMultiplier ve effectRadius'u büyütüyoruz.
-   */
-  upgrade() {
-    if (!this.canUpgrade()) {
-      return false;
+  onPowerLevelApplied(multiplier) {
+    if (this.baseEffectRadius == null || this.baseGatherMultiplier == null) {
+      return;
     }
 
-    this.level += 1;
-    this.gatherMultiplier = Math.round(this.gatherMultiplier * RESOURCE_EXTRACTOR_UPGRADE_GATHER_MULTIPLIER * 100) / 100;
-    this.effectRadius = Math.round(this.effectRadius * RESOURCE_EXTRACTOR_UPGRADE_RADIUS_MULTIPLIER);
-
-    this.playUpgradeEffect();
-
-    return true;
+    this.effectRadius = Math.max(1, Math.round(this.baseEffectRadius * multiplier));
+    this.gatherMultiplier = Math.round(this.baseGatherMultiplier * multiplier * 100) / 100;
   }
 }

@@ -10,6 +10,7 @@ import WaveBanner from '../ui/WaveBanner.js';
 import EnemySpawner from '../systems/EnemySpawner.js';
 import CombatSystem from '../systems/CombatSystem.js';
 import GoldSystem from '../systems/GoldSystem.js';
+import AudioSystem from '../systems/AudioSystem.js';
 import BuildingSystem from '../systems/BuildingSystem.js';
 import ResourceSystem from '../systems/ResourceSystem.js';
 import FogOfWarSystem from '../systems/FogOfWarSystem.js';
@@ -87,6 +88,7 @@ export default class MainScene extends Phaser.Scene {
     this.waveSystem = new WaveSystem(this, this.player, this.enemySpawner);
     this.combatSystem = new CombatSystem(this, this.player, this.enemySpawner, this.buildingSystem);
     this.goldSystem = new GoldSystem(this, this.player);
+    this.audioSystem = new AudioSystem(this, this.player);
     this.saveSystem = new SaveSystem();
 
     this.minimap = new Minimap(this, this.player, this.fogOfWarSystem, this.enemySpawner);
@@ -105,6 +107,7 @@ export default class MainScene extends Phaser.Scene {
       this.applySaveData(this.loadedSaveData);
       this.loadedSaveData = null;
       this.suppressAutoSave = false;
+      this.audioSystem.syncFromPlayer();
     }
   }
 
@@ -192,7 +195,7 @@ export default class MainScene extends Phaser.Scene {
 
         this.buildingSystem.restoreBuilding(BuildingClass, buildingData.x, buildingData.y, {
           health: buildingData.health,
-          upgradeLevel: buildingData.upgradeLevel ?? 1,
+          currentPowerLevel: buildingData.currentPowerLevel ?? buildingData.upgradeLevel,
         });
       }
     }

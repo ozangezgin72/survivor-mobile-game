@@ -1,28 +1,13 @@
-import {
-  BUILDING_MAX_LEVEL,
-  BUILDING_UPGRADE_DAMAGE_MULTIPLIER,
-  BUILDING_UPGRADE_RANGE_MULTIPLIER,
-} from '../../config/Constants.js';
+import { getChunkStatMultiplier, getChunkCostMultiplier, getPowerLevelAt } from '../../utils/ChunkPower.js';
 
 let nextBuildingId = 1;
 
 /**
- * Tüm inşa edilebilir yapıların (ArcherTower, Cannon, MissileTower, Wall,
- * ResourceExtractor) ortak base class'ı.
+ * Tüm inşa edilebilir yapıların ortak base class'ı.
  *
- * Alt sınıflar sadece kendi config değerlerini (health/attackDamage/attackRange/vb.)
- * Constants.js'den okuyup buraya aktarır; sprite oluşturma, hasar alma ve ölme mantığı
- * tek yerde yaşar. Saldırı yeteneği olmayan binalarda (Wall, ResourceExtractor)
- * attackRange varsayılan olarak 0 kalır - CombatSystem bu yüzden onları "saldırgan
- * taraf" olarak değerlendirmez (bkz. CombatSystem.updateBuildingAttacks).
- *
- * Buildings hareket etmediği için Player/Enemy'deki gibi x/y getter+sprite yerine
- * düz property kullanılıyor (yerleştirildikten sonra pozisyonu asla değişmez).
- *
- * Faz 5: level/upgrade() desteği eklendi. `upgradeCost` verilmeyen (0 kalan) binalar
- * (örn. Wall) yükseltilemez - canUpgrade() her zaman false döner. Varsayılan upgrade()
- * attackDamage/attackRange'i çarpar (kuleler için anlamlı); ResourceExtractor kendi
- * upgrade()'ini override ederek gatherMultiplier/effectRadius'u büyütür (bkz. o dosya).
+ * Chunk gücü: kurulduğu (veya yükseltildiği) power seviyesine göre health/attackDamage/
+ * attackRange = base * (1 + currentPowerLevel * STAT_MULT). Yükseltme, currentPowerLevel'ı
+ * +1 artırıp statları base'den yeniden hesaplar; tavan = açılmış chunk'ların max gücü.
  */
 export default class Building {
   constructor(scene, x, y, config) {
@@ -36,59 +21,111 @@ export default class Building {
     this.cost = config.cost;
 
     this.isAlive = true;
-    this.maxHealth = config.health;
-    this.health = this.maxHealth;
 
-    // Kule alt sınıfları bunları gerçek değerlerle doldurur; Wall/ResourceExtractor 0'da bırakır
-    this.attackDamage = config.attackDamage || 0;
-    this.attackRange = config.attackRange || 0;
+    // Ölçeklenmemiş taban statlar — upgrade/power değişiminde buradan yeniden hesaplanır
+    this.baseMaxHealth = config.health;
+    this.baseAttackDamage = config.attackDamage || 0;
+    this.baseAttackRange = config.attackRange || 0;
+
     this.attackSpeed = config.attackSpeed || 0;
     this.splashRadius = config.splashRadius || 0;
     this.lastAttackTime = 0;
 
-    // Sadece Wall true yapar; EnemySpawner/Enemy hareketi bu binaların içinden geçemez
     this.blocksMovement = config.blocksMovement || false;
     this.blockRadius = config.blockRadius || 24;
 
-    // Faz 5: yükseltme. upgradeCost verilmezse (0 kalır) canUpgrade() hep false döner (örn. Wall)
-    this.level = 1;
-    this.maxLevel = config.maxLevel ?? BUILDING_MAX_LEVEL;
-    this.upgradeCost = config.upgradeCost || 0;
+    // Taban yükseltme maliyeti (kaynak); 0 = yükseltilemez (örn. Wall)
+    this.baseUpgradeCost = config.upgradeCost || 0;
+
+    this.currentPowerLevel = config.powerLevel ?? Building.resolvePowerLevel(scene, x, y);
+    // Eski kod uyumu
+    this.powerLevel = this.currentPowerLevel;
+    this.level = this.currentPowerLevel;
+
+    this.applyChunkPowerScaling({ fillHealth: true });
 
     this.sprite = scene.add.sprite(x, y, config.textureKey);
     this.sprite.setDepth(6);
   }
 
-  canUpgrade() {
-    return this.isAlive && this.upgradeCost > 0 && this.level < this.maxLevel;
+  static resolvePowerLevel(scene, x, y) {
+    return getPowerLevelAt(scene.fogOfWarSystem, x, y);
   }
 
   /**
-   * BuildingSystem, oyuncunun kaynağını (resources) düşürdükten SONRA bunu çağırır - yani
-   * burada ödeme kontrolü yok, sadece stat iyileştirmesi var. INSTANT_BUILD: çağrıldığı anda
-   * uygulanır, bekleme yoktur.
+   * currentPowerLevel'a göre health / attackDamage / attackRange'i base'den hesaplar.
+   * @param {{ fillHealth?: boolean }} [options]
+   */
+  applyChunkPowerScaling(options = {}) {
+    const fillHealth = options.fillHealth === true;
+    const previousMax = this.maxHealth || this.baseMaxHealth;
+    const healthRatio = previousMax > 0 && this.health != null ? this.health / previousMax : 1;
+    const multiplier = getChunkStatMultiplier(this.currentPowerLevel);
+
+    this.maxHealth = Math.max(1, Math.round(this.baseMaxHealth * multiplier));
+    this.health = fillHealth ? this.maxHealth : Math.max(1, Math.round(this.maxHealth * healthRatio));
+
+    this.attackDamage =
+      this.baseAttackDamage > 0 ? Math.max(1, Math.round(this.baseAttackDamage * multiplier)) : 0;
+    this.attackRange =
+      this.baseAttackRange > 0 ? Math.max(1, Math.round(this.baseAttackRange * multiplier)) : 0;
+
+    this.powerLevel = this.currentPowerLevel;
+    this.level = this.currentPowerLevel;
+    this.onPowerLevelApplied(multiplier);
+  }
+
+  /** Alt sınıflar (örn. ResourceExtractor) ekstra statları burada ölçekler */
+  onPowerLevelApplied(_multiplier) {}
+
+  /** Bir sonraki power seviyesine yükseltme maliyeti (kaynak) */
+  getNextUpgradeCost() {
+    if (this.baseUpgradeCost <= 0) {
+      return 0;
+    }
+
+    return Math.max(1, Math.round(this.baseUpgradeCost * getChunkCostMultiplier(this.currentPowerLevel + 1)));
+  }
+
+  /** @deprecated getNextUpgradeCost kullan; UpgradePrompt uyumu için */
+  get upgradeCost() {
+    return this.getNextUpgradeCost();
+  }
+
+  /**
+   * @param {number} maxUnlockedPowerLevel - FogOfWarSystem.getMaxUnlockedPowerLevel()
+   */
+  canUpgrade(maxUnlockedPowerLevel) {
+    if (maxUnlockedPowerLevel === undefined) {
+      maxUnlockedPowerLevel = this.scene.fogOfWarSystem?.getMaxUnlockedPowerLevel?.() ?? 0;
+    }
+
+    return this.isAlive && this.baseUpgradeCost > 0 && this.currentPowerLevel < maxUnlockedPowerLevel;
+  }
+
+  /** Kayıt yükleme vb. için tavan kontrolü olmadan güç seviyesi ayarla */
+  setPowerLevel(powerLevel, options = {}) {
+    this.currentPowerLevel = Math.max(0, powerLevel);
+    this.applyChunkPowerScaling({ fillHealth: options.fillHealth === true });
+  }
+
+  /**
+   * BuildingSystem ödeme yaptıktan sonra çağırır. currentPowerLevel += 1, statlar base'den yenilenir.
    */
   upgrade() {
-    if (!this.canUpgrade()) {
+    const maxUnlocked = this.scene.fogOfWarSystem?.getMaxUnlockedPowerLevel?.() ?? 0;
+
+    if (!this.canUpgrade(maxUnlocked)) {
       return false;
     }
 
-    this.level += 1;
-
-    if (this.attackDamage > 0) {
-      this.attackDamage = Math.round(this.attackDamage * BUILDING_UPGRADE_DAMAGE_MULTIPLIER);
-    }
-
-    if (this.attackRange > 0) {
-      this.attackRange = Math.round(this.attackRange * BUILDING_UPGRADE_RANGE_MULTIPLIER);
-    }
-
+    this.currentPowerLevel += 1;
+    this.applyChunkPowerScaling({ fillHealth: false });
     this.playUpgradeEffect();
 
     return true;
   }
 
-  /** Yükseltme anını belli eden kısa bir "büyüyüp küçülme + beyaz flash" efekti */
   playUpgradeEffect() {
     this.scene.tweens.add({
       targets: this.sprite,
@@ -107,7 +144,6 @@ export default class Building {
     });
   }
 
-  /** CombatSystem tarafından çağrılır (örn. bir düşman duvara vurunca) */
   takeDamage(amount) {
     if (!this.isAlive) {
       return;

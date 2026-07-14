@@ -8,16 +8,12 @@ import {
 
 const AFFORDABLE_COLOR = 0x4a148c;
 const UNAFFORDABLE_COLOR = 0x424242;
+const MAX_LEVEL_COLOR = 0x37474f;
 
 /**
- * Oyuncu, yükseltilebilir (canUpgrade()=true) bir binaya yaklaşınca beliren
- * "<Bina adı> yükselt: N kaynak" butonu.
- *
- * UnlockPrompt.js ile aynı mantıkla çalışır (BuildingSystem'in her frame belirlediği
- * "en yakın yükseltilebilir bina" bilgisine göre görünür/gizli olur, INSTANT_BUILD ile
- * dokunulduğu an uygulanır) ama farklı bir dikey konumda durur - UnlockPrompt'un hemen
- * üstünde - böylece ikisi de gerektiğinde aynı anda görünebilir (örn. oyuncu hem sınıra
- * hem bir kuleye yakınsa).
+ * Yakındaki bina için güç yükseltme prompt'u.
+ * currentPowerLevel < maxUnlockedPowerLevel ise "Yükselt (X → X+1): N kaynak";
+ * aksi halde "Maksimum Seviye" (devre dışı).
  */
 export default class UpgradePrompt {
   constructor(scene, player, buildingSystem) {
@@ -30,6 +26,10 @@ export default class UpgradePrompt {
     this.scene.scale.on('resize', this.handleResize);
   }
 
+  get fogOfWarSystem() {
+    return this.buildingSystem.fogOfWarSystem;
+  }
+
   getPromptPosition() {
     const scaleWidth = this.scene.scale.width;
     const scaleHeight = this.scene.scale.height;
@@ -37,7 +37,6 @@ export default class UpgradePrompt {
 
     return {
       x: (scaleWidth - UNLOCK_PROMPT_WIDTH) / 2,
-      // UnlockPrompt'un hemen üstünde dursun ki ikisi de aynı anda görünebilsin
       y: barTopY - (UNLOCK_PROMPT_BOTTOM_GAP + UNLOCK_PROMPT_HEIGHT) * 2,
     };
   }
@@ -63,7 +62,7 @@ export default class UpgradePrompt {
     this.background.on('pointerdown', () => this.handleTap());
 
     this.label = this.scene.add.text(this.x + UNLOCK_PROMPT_WIDTH / 2, this.y + UNLOCK_PROMPT_HEIGHT / 2, '', {
-      fontSize: '15px',
+      fontSize: '14px',
       color: '#ffffff',
       fontStyle: 'bold',
       align: 'center',
@@ -96,14 +95,34 @@ export default class UpgradePrompt {
       return;
     }
 
-    const affordable = this.player.canAffordResources(building.upgradeCost);
+    const maxPower = this.fogOfWarSystem?.getMaxUnlockedPowerLevel?.() ?? 0;
+    const canUpgrade = building.canUpgrade(maxPower);
 
-    this.label.setText(`${building.name} yükselt (Sv.${building.level + 1}): ${building.upgradeCost} kaynak`);
+    if (!canUpgrade) {
+      this.label.setText(`${building.name}: Maksimum Seviye (Güç ${building.currentPowerLevel})`);
+      this.background.setFillStyle(MAX_LEVEL_COLOR, 0.92);
+      this.setVisible(true);
+      return;
+    }
+
+    const from = building.currentPowerLevel;
+    const to = from + 1;
+    const cost = building.getNextUpgradeCost();
+    const affordable = this.player.canAffordResources(cost);
+
+    this.label.setText(`${building.name} yükselt (${from} → ${to}): ${cost} kaynak`);
     this.background.setFillStyle(affordable ? AFFORDABLE_COLOR : UNAFFORDABLE_COLOR, 0.92);
     this.setVisible(true);
   }
 
   handleTap() {
+    const building = this.buildingSystem.nearestUpgradeableBuilding;
+    const maxPower = this.fogOfWarSystem?.getMaxUnlockedPowerLevel?.() ?? 0;
+
+    if (!building || !building.canUpgrade(maxPower)) {
+      return;
+    }
+
     const success = this.buildingSystem.tryUpgradeNearestBuilding();
 
     if (!success) {
@@ -111,7 +130,6 @@ export default class UpgradePrompt {
     }
   }
 
-  /** Yetersiz kaynakla dokununca küçük bir "titreme" - neden yükseltilmediği belli olsun */
   flashDenied() {
     this.scene.tweens.add({
       targets: this.background,

@@ -8,8 +8,8 @@ export const GAME_HEIGHT = 1280;
 
 // --- Oyun dünyası ---
 // Şimdilik düz renkli/tekrarlı doku ile dolu, gerçek tilemap ileride gelecek.
-export const WORLD_WIDTH = 4000;
-export const WORLD_HEIGHT = 4000;
+export const WORLD_WIDTH = 7200;
+export const WORLD_HEIGHT = 7200;
 
 // --- Oyuncu hareketi ---
 export const PLAYER_SPEED = 220; // piksel/saniye - joystick ne kadar itilirse itilsin hız sabit
@@ -149,8 +149,9 @@ export const RESOURCE_ICON_SIZE = 16;
 export const HUD_TOP_ZONE_HEIGHT = 230;
 
 // --- Fog of War / Harita Genişletme (Faz 4) ---
-// Harita mantıksal olarak eşit "chunk"lara bölünüyor: 4000/800 = 5x5 = 25 chunk.
+// Harita mantıksal olarak eşit "chunk"lara bölünüyor: 7200/800 = 9x9 = 81 chunk.
 // Sadece oyuncunun spawn olduğu merkez chunk baştan açık (unlocked); gerisi sisli (locked).
+// Tek sayı grid → merkez floor(9/2)=4 tam ortada, köşeler simetrik power seviyesinde.
 export const CHUNK_SIZE = 800;
 export const CHUNK_GRID_COLS = WORLD_WIDTH / CHUNK_SIZE;
 export const CHUNK_GRID_ROWS = WORLD_HEIGHT / CHUNK_SIZE;
@@ -172,6 +173,12 @@ export const CHUNK_NODE_EDGE_MARGIN = 60;
 // Kilitli chunk'ların sis görünümü
 export const FOG_OVERLAY_COLOR = 0x000000;
 export const FOG_OVERLAY_ALPHA = 0.78;
+
+// --- Chunk-bazlı güç ölçeklendirme ---
+// Merkezden uzaklaştıkça (güç seviyesi arttıkça) binalar güçlenir ve maliyetler artar.
+// getChunkPowerLevel(col, row) → 0 = merkez, 1 = bitişik halka, ...
+export const CHUNK_POWER_STAT_MULTIPLIER_PER_LEVEL = 0.2; // her seviyede bina hasar/can/menzil +%20
+export const CHUNK_POWER_COST_MULTIPLIER_PER_LEVEL = 0.25; // her seviyede bina/chunk maliyeti +%25
 
 // --- "Bu bölgeyi aç" prompt UI (Faz 4) ---
 export const UNLOCK_PROMPT_WIDTH = 280;
