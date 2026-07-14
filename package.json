@@ -1,0 +1,20 @@
+{
+  "name": "survivor-mobile-game",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Hyper-casual mobil strateji/aksiyon oyunu - Phaser 3 + Vite",
+  "scripts": {
+    "dev": "vite",
+    "dev:host": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "phaser": "^3.90.0",
+    "phaser3-rex-plugins": "^1.80.20"
+  },
+  "devDependencies": {
+    "vite": "^8.1.0"
+  }
+}
