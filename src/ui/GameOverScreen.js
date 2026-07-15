@@ -1,19 +1,27 @@
+import LeaderboardScreen from './LeaderboardScreen.js';
+import { submitScore, sanitizePlayerNameInput } from '../services/LeaderboardApi.js';
+
 const OVERLAY_DEPTH = 4000;
 const BUTTON_WIDTH = 280;
-const BUTTON_HEIGHT = 56;
-const BUTTON_GAP = 16;
+const BUTTON_HEIGHT = 48;
+const BUTTON_GAP = 12;
 
 /**
- * Oyuncu öldüğünde gösterilen oyun sonu ekranı: performans özeti + tekrar oyna / ana menü.
+ * Oyuncu öldüğünde gösterilen oyun sonu ekranı: performans özeti + skor gönderme + liderlik.
  */
 export default class GameOverScreen {
   constructor(scene, player) {
     this.scene = scene;
     this.player = player;
     this.isVisible = false;
+    this.scoreSubmitted = false;
+    this.isSubmitting = false;
+    this.leaderboardScreen = new LeaderboardScreen(scene);
+
     this.overlay = null;
     this.titleText = null;
     this.statsText = null;
+    this.submitStatusText = null;
     this.buttons = [];
 
     this.handleResize = this.handleResize.bind(this);
@@ -26,6 +34,8 @@ export default class GameOverScreen {
     }
 
     this.isVisible = true;
+    this.scoreSubmitted = false;
+    this.isSubmitting = false;
 
     const scaleWidth = this.scene.scale.width;
     const scaleHeight = this.scene.scale.height;
@@ -34,8 +44,8 @@ export default class GameOverScreen {
     this.overlay.setScrollFactor(0);
     this.overlay.setDepth(OVERLAY_DEPTH);
 
-    this.titleText = this.scene.add.text(scaleWidth / 2, scaleHeight * 0.22, 'GAME OVER', {
-      fontSize: '48px',
+    this.titleText = this.scene.add.text(scaleWidth / 2, scaleHeight * 0.16, 'GAME OVER', {
+      fontSize: '44px',
       fontStyle: 'bold',
       color: '#ff5252',
       stroke: '#000000',
@@ -45,22 +55,34 @@ export default class GameOverScreen {
     this.titleText.setScrollFactor(0);
     this.titleText.setDepth(OVERLAY_DEPTH + 1);
 
-    this.statsText = this.scene.add.text(scaleWidth / 2, scaleHeight * 0.4, this.buildStatsText(), {
-      fontSize: '20px',
+    this.statsText = this.scene.add.text(scaleWidth / 2, scaleHeight * 0.32, this.buildStatsText(), {
+      fontSize: '18px',
       color: '#ffffff',
       align: 'center',
-      lineSpacing: 8,
+      lineSpacing: 6,
     });
     this.statsText.setOrigin(0.5, 0.5);
     this.statsText.setScrollFactor(0);
     this.statsText.setDepth(OVERLAY_DEPTH + 1);
 
-    this.createButton(0.58, 'TEKRAR OYNA', 0x1b5e20, 0xaed581, () => {
-      // Aynı slota yeni oyun; loadedSaveData olmadan restart
+    this.submitStatusText = this.scene.add.text(scaleWidth / 2, scaleHeight * 0.44, '', {
+      fontSize: '14px',
+      color: '#b39ddb',
+      align: 'center',
+      wordWrap: { width: scaleWidth - 80 },
+    });
+    this.submitStatusText.setOrigin(0.5, 0.5);
+    this.submitStatusText.setScrollFactor(0);
+    this.submitStatusText.setDepth(OVERLAY_DEPTH + 1);
+
+    this.createButton(0.5, 'SKORU GÖNDER', 0x4527a0, 0xb39ddb, () => this.handleSubmitScore());
+    this.createButton(0.5 + (BUTTON_HEIGHT + BUTTON_GAP) / scaleHeight, 'SIRALAMAYI GÖR', 0x283593, 0x9fa8da, () =>
+      this.openLeaderboard(),
+    );
+    this.createButton(0.5 + ((BUTTON_HEIGHT + BUTTON_GAP) * 2) / scaleHeight, 'TEKRAR OYNA', 0x1b5e20, 0xaed581, () => {
       this.scene.scene.restart({ slotKey: this.scene.currentSlotKey });
     });
-
-    this.createButton(0.58 + (BUTTON_HEIGHT + BUTTON_GAP) / scaleHeight, 'ANA MENÜYE DÖN', 0x424242, 0xbdbdbd, () => {
+    this.createButton(0.5 + ((BUTTON_HEIGHT + BUTTON_GAP) * 3) / scaleHeight, 'ANA MENÜYE DÖN', 0x424242, 0xbdbdbd, () => {
       this.scene.scene.start('MenuScene');
     });
   }
@@ -93,6 +115,80 @@ export default class GameOverScreen {
     return lines.join('\n');
   }
 
+  getScorePayload() {
+    const { finalScore } = this.scene.scoreSystem?.calculateFinalScore?.() ?? { finalScore: 0 };
+
+    return {
+      score: finalScore,
+      level: this.player.level ?? 1,
+      prestigeCount: this.scene.prestigeSystem?.getTotalPrestigeCount?.() ?? 0,
+    };
+  }
+
+  async handleSubmitScore() {
+    if (this.scoreSubmitted || this.isSubmitting) {
+      return;
+    }
+
+    const rawName = window.prompt('Skor tablosu için adını gir (en fazla 20 karakter):', '');
+    if (rawName == null) {
+      return;
+    }
+
+    const playerName = sanitizePlayerNameInput(rawName);
+    if (!playerName) {
+      this.setSubmitStatus('Geçerli bir isim gir.', true);
+      return;
+    }
+
+    const { score, level, prestigeCount } = this.getScorePayload();
+
+    this.isSubmitting = true;
+    this.setSubmitStatus('Gönderiliyor...', false);
+    this.setSubmitButtonLabel('GÖNDERİLİYOR...');
+
+    try {
+      await submitScore({ playerName, score, level, prestigeCount });
+      this.scoreSubmitted = true;
+      this.setSubmitStatus('Gönderildi!', false);
+      this.setSubmitButtonLabel('GÖNDERİLDİ!', true);
+    } catch (error) {
+      console.error('[GameOverScreen] submit failed', error);
+      this.setSubmitStatus(error.message || 'Skor gönderilemedi.', true);
+      this.setSubmitButtonLabel('SKORU GÖNDER');
+    } finally {
+      this.isSubmitting = false;
+    }
+  }
+
+  setSubmitStatus(message, isError) {
+    if (!this.submitStatusText) {
+      return;
+    }
+
+    this.submitStatusText.setText(message);
+    this.submitStatusText.setColor(isError ? '#ef9a9a' : '#b39ddb');
+  }
+
+  setSubmitButtonLabel(label, disabled = false) {
+    const submitButton = this.buttons[0];
+    if (!submitButton) {
+      return;
+    }
+
+    submitButton.text.setText(label);
+    submitButton.disabled = disabled;
+
+    if (disabled) {
+      submitButton.background.setFillStyle(0x37474f, 0.95);
+      submitButton.background.disableInteractive();
+    }
+  }
+
+  openLeaderboard() {
+    this.leaderboardScreen.show();
+  }
+
   formatSurvivalTime(elapsedMs) {
     const totalSeconds = Math.floor(elapsedMs / 1000);
     const minutes = Math.floor(totalSeconds / 60);
@@ -114,7 +210,7 @@ export default class GameOverScreen {
     background.setInteractive({ useHandCursor: true });
 
     const text = this.scene.add.text(x, y, label, {
-      fontSize: '20px',
+      fontSize: '17px',
       fontStyle: 'bold',
       color: '#ffffff',
     });
@@ -122,9 +218,15 @@ export default class GameOverScreen {
     text.setScrollFactor(0);
     text.setDepth(OVERLAY_DEPTH + 2);
 
-    background.on('pointerdown', onClick);
+    background.on('pointerdown', () => {
+      const button = this.buttons.find((entry) => entry.background === background);
+      if (button?.disabled) {
+        return;
+      }
+      onClick();
+    });
 
-    this.buttons.push({ background, text, yRatio });
+    this.buttons.push({ background, text, yRatio, disabled: false });
   }
 
   repositionForNewScale() {
@@ -138,14 +240,16 @@ export default class GameOverScreen {
     this.overlay.setPosition(scaleWidth / 2, scaleHeight / 2);
     this.overlay.setSize(scaleWidth, scaleHeight);
 
-    this.titleText.setPosition(scaleWidth / 2, scaleHeight * 0.22);
-    this.statsText.setPosition(scaleWidth / 2, scaleHeight * 0.4);
+    this.titleText.setPosition(scaleWidth / 2, scaleHeight * 0.16);
+    this.statsText.setPosition(scaleWidth / 2, scaleHeight * 0.32);
+    this.submitStatusText.setPosition(scaleWidth / 2, scaleHeight * 0.44);
 
-    for (const button of this.buttons) {
-      const y = scaleHeight * button.yRatio;
+    this.buttons.forEach((button, index) => {
+      const y = scaleHeight * (0.5 + (index * (BUTTON_HEIGHT + BUTTON_GAP)) / scaleHeight);
+      button.yRatio = 0.5 + (index * (BUTTON_HEIGHT + BUTTON_GAP)) / scaleHeight;
       button.background.setPosition(scaleWidth / 2, y);
       button.text.setPosition(scaleWidth / 2, y);
-    }
+    });
   }
 
   handleResize() {
@@ -154,6 +258,7 @@ export default class GameOverScreen {
 
   destroy() {
     this.scene.scale.off('resize', this.handleResize);
+    this.leaderboardScreen.destroy();
 
     if (this.overlay) {
       this.overlay.destroy();
@@ -167,6 +272,10 @@ export default class GameOverScreen {
       this.statsText.destroy();
     }
 
+    if (this.submitStatusText) {
+      this.submitStatusText.destroy();
+    }
+
     for (const button of this.buttons) {
       button.background.destroy();
       button.text.destroy();
@@ -175,6 +284,7 @@ export default class GameOverScreen {
     this.overlay = null;
     this.titleText = null;
     this.statsText = null;
+    this.submitStatusText = null;
     this.buttons = [];
     this.isVisible = false;
   }

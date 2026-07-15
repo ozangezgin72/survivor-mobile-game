@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import SaveSystem from '../systems/SaveSystem.js';
+import LeaderboardScreen from '../ui/LeaderboardScreen.js';
 
 const PANEL_DEPTH = 5000;
 const SLOT_HEIGHT = 100;
@@ -19,6 +20,7 @@ export default class MenuScene extends Phaser.Scene {
 
   create() {
     this.saveSystem = new SaveSystem();
+    this.leaderboardScreen = new LeaderboardScreen(this);
     this.slotPanelElements = [];
     this.slotPanelOpen = false;
     this.pendingDeleteSlotKey = null;
@@ -39,6 +41,7 @@ export default class MenuScene extends Phaser.Scene {
     this.titleText.setOrigin(0.5, 0.5);
 
     this.createPlayButton();
+    this.createLeaderboardButton();
     this.repositionForNewScale();
   }
 
@@ -62,9 +65,42 @@ export default class MenuScene extends Phaser.Scene {
     this.playButtonBackground.on('pointerdown', () => this.openSlotPanel());
   }
 
+  createLeaderboardButton() {
+    const buttonWidth = 280;
+    const buttonHeight = 56;
+
+    this.leaderboardButtonBackground = this.add.rectangle(0, 0, buttonWidth, buttonHeight, 0x283593, 0.95);
+    this.leaderboardButtonBackground.setStrokeStyle(3, 0x9fa8da, 1);
+    this.leaderboardButtonBackground.setInteractive({ useHandCursor: true });
+
+    this.leaderboardButtonLabel = this.add.text(0, 0, 'LİDERLİK TABLOSU', {
+      fontSize: '22px',
+      fontStyle: 'bold',
+      color: '#ffffff',
+    });
+    this.leaderboardButtonLabel.setOrigin(0.5, 0.5);
+
+    this.leaderboardButtonBackground.on('pointerover', () =>
+      this.leaderboardButtonBackground.setFillStyle(0x3949ab, 0.95),
+    );
+    this.leaderboardButtonBackground.on('pointerout', () =>
+      this.leaderboardButtonBackground.setFillStyle(0x283593, 0.95),
+    );
+    this.leaderboardButtonBackground.on('pointerdown', () => this.openLeaderboard());
+  }
+
+  openLeaderboard() {
+    this.leaderboardScreen.show();
+  }
+
   setPlayButtonVisible(visible) {
     this.playButtonBackground.setVisible(visible);
     this.playButtonLabel.setVisible(visible);
+  }
+
+  setLeaderboardButtonVisible(visible) {
+    this.leaderboardButtonBackground.setVisible(visible);
+    this.leaderboardButtonLabel.setVisible(visible);
   }
 
   openSlotPanel() {
@@ -72,6 +108,7 @@ export default class MenuScene extends Phaser.Scene {
     this.slotPanelOpen = true;
     this.pendingDeleteSlotKey = null;
     this.setPlayButtonVisible(false);
+    this.setLeaderboardButtonVisible(false);
     this.buildSlotPanel();
   }
 
@@ -81,6 +118,7 @@ export default class MenuScene extends Phaser.Scene {
     this.slotPanelOpen = true;
     this.pendingDeleteSlotKey = pendingDelete;
     this.setPlayButtonVisible(false);
+    this.setLeaderboardButtonVisible(false);
     this.buildSlotPanel();
   }
 
@@ -89,6 +127,7 @@ export default class MenuScene extends Phaser.Scene {
     this.slotPanelOpen = false;
     this.pendingDeleteSlotKey = null;
     this.setPlayButtonVisible(true);
+    this.setLeaderboardButtonVisible(true);
     this.repositionForNewScale();
   }
 
@@ -263,8 +302,10 @@ export default class MenuScene extends Phaser.Scene {
       return;
     }
 
-    this.playButtonBackground.setPosition(scaleWidth / 2, scaleHeight * 0.55);
-    this.playButtonLabel.setPosition(scaleWidth / 2, scaleHeight * 0.55);
+    this.playButtonBackground.setPosition(scaleWidth / 2, scaleHeight * 0.52);
+    this.playButtonLabel.setPosition(scaleWidth / 2, scaleHeight * 0.52);
+    this.leaderboardButtonBackground.setPosition(scaleWidth / 2, scaleHeight * 0.62);
+    this.leaderboardButtonLabel.setPosition(scaleWidth / 2, scaleHeight * 0.62);
   }
 
   handleResize() {
@@ -273,5 +314,6 @@ export default class MenuScene extends Phaser.Scene {
 
   shutdown() {
     this.scale.off('resize', this.handleResize);
+    this.leaderboardScreen?.destroy();
   }
 }
