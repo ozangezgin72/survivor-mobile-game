@@ -1,3 +1,5 @@
+import { getDeviceId } from '../utils/DeviceId.js';
+
 const SUBMIT_URL = '/api/submit-score';
 const LEADERBOARD_URL = '/api/get-leaderboard';
 
@@ -28,7 +30,10 @@ export async function submitScore(payload) {
   const response = await fetch(SUBMIT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      ...payload,
+      deviceId: getDeviceId(),
+    }),
   });
 
   return parseJsonResponse(response);

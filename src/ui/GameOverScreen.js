@@ -148,9 +148,18 @@ export default class GameOverScreen {
     this.setSubmitButtonLabel('GÖNDERİLİYOR...');
 
     try {
-      await submitScore({ playerName, score, level, prestigeCount });
+      const result = await submitScore({ playerName, score, level, prestigeCount });
       this.scoreSubmitted = true;
-      this.setSubmitStatus('Gönderildi!', false);
+
+      if (result?.updated === false) {
+        this.setSubmitStatus(
+          `Kaydedildi — önceki best (${result.bestScore}) daha yüksek, liste değişmedi.`,
+          false,
+        );
+      } else {
+        this.setSubmitStatus('Gönderildi!', false);
+      }
+
       this.setSubmitButtonLabel('GÖNDERİLDİ!', true);
     } catch (error) {
       console.error('[GameOverScreen] submit failed', error);

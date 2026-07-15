@@ -1,17 +1,18 @@
 import {
   getRedis,
-  LEADERBOARD_KEY,
+  LEADERBOARD_SCORES_KEY,
+  LEADERBOARD_RANKING_KEY,
   MAX_SCORE,
   setCorsHeaders,
   sanitizePlayerName,
+  sanitizeDeviceId,
 } from './_redis.js';
 
 /**
  * POST /api/submit-score
- * Body: { playerName, score, level?, prestigeCount? }
+ * Body: { playerName, score, level?, prestigeCount?, deviceId }
  *
- * Redis sorted set "leaderboard": ZADD score member
- * member = JSON { id, playerName, level, prestigeCount, submittedAt }
+ * Cihaz başına tek kayıt: yeni skor eski best'ten yüksekse HASH + ZSET güncellenir.
  */
 export default async function handler(req, res) {
   setCorsHeaders(res);
@@ -29,6 +30,7 @@ export default async function handler(req, res) {
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
     const playerName = sanitizePlayerName(body.playerName);
+    const deviceId = sanitizeDeviceId(body.deviceId);
     const score = Number(body.score);
     const level = Number.isFinite(Number(body.level)) ? Math.max(0, Math.floor(Number(body.level))) : 1;
     const prestigeCount = Number.isFinite(Number(body.prestigeCount))
@@ -37,6 +39,11 @@ export default async function handler(req, res) {
 
     if (!playerName) {
       res.status(400).json({ error: 'playerName is required (max 20 chars)' });
+      return;
+    }
+
+    if (!deviceId) {
+      res.status(400).json({ error: 'deviceId is required' });
       return;
     }
 
@@ -50,24 +57,56 @@ export default async function handler(req, res) {
       return;
     }
 
+    const roundedScore = Math.round(score);
+    const redis = getRedis();
+    const existingRaw = await redis.hget(LEADERBOARD_SCORES_KEY, deviceId);
+    let existing = null;
+
+    if (existingRaw) {
+      try {
+        existing = JSON.parse(existingRaw);
+      } catch {
+        existing = null;
+      }
+    }
+
+    const previousBest = Number.isFinite(Number(existing?.score)) ? Number(existing.score) : null;
+
+    if (previousBest != null && roundedScore <= previousBest) {
+      res.status(200).json({
+        ok: true,
+        updated: false,
+        message: 'Skor kaydedildi ama önceki skorun daha yüksekti',
+        deviceId,
+        playerName,
+        score: roundedScore,
+        bestScore: previousBest,
+        level: existing?.level ?? level,
+        prestigeCount: existing?.prestigeCount ?? prestigeCount,
+        submittedAt: existing?.submittedAt ?? null,
+      });
+      return;
+    }
+
     const submittedAt = Date.now();
-    const id = `${submittedAt}-${Math.random().toString(36).slice(2, 8)}`;
-    const member = JSON.stringify({
-      id,
+    const record = {
       playerName,
+      score: roundedScore,
       level,
       prestigeCount,
       submittedAt,
-    });
+    };
 
-    const redis = getRedis();
-    await redis.zadd(LEADERBOARD_KEY, score, member);
+    await redis.hset(LEADERBOARD_SCORES_KEY, deviceId, JSON.stringify(record));
+    await redis.zadd(LEADERBOARD_RANKING_KEY, roundedScore, deviceId);
 
     res.status(200).json({
       ok: true,
-      id,
+      updated: true,
+      deviceId,
       playerName,
-      score: Math.round(score),
+      score: roundedScore,
+      bestScore: roundedScore,
       level,
       prestigeCount,
       submittedAt,
