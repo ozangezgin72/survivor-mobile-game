@@ -168,13 +168,58 @@ export default class Player {
     this.scene.events.emit(GameEvents.PLAYER_GOLD_CHANGED, this.gold);
   }
 
+  getPrestigePoints() {
+    return this.scene.prestigeSystem?.getTotalPrestigePoints?.() ?? 0;
+  }
+
+  /** Altın + prestij toplamı maliyeti karşılıyor mu (bina kurma) */
   canAfford(goldAmount) {
+    return this.gold + this.getPrestigePoints() >= goldAmount;
+  }
+
+  /** Sadece altın yeterli mi (prestij kullanılmadan) */
+  canAffordGoldOnly(goldAmount) {
     return this.gold >= goldAmount;
   }
 
-  /** BuildingSystem tarafından çağrılır; yetersiz altında harcamayı reddeder */
+  /** Altın yetmiyor ama prestij ile tamamlanabilir */
+  needsPrestigeForGold(goldAmount) {
+    return goldAmount > 0 && !this.canAffordGoldOnly(goldAmount) && this.canAfford(goldAmount);
+  }
+
+  /**
+   * Önce altından, yetmezse prestijden düşer (bina kurma).
+   * Prestij harcanacaksa UI zaten mor uyarı göstermeli (BuildMenu onayı).
+   */
   spendGold(amount) {
     if (!this.canAfford(amount)) {
+      return false;
+    }
+
+    const fromGold = Math.min(this.gold, amount);
+    const fromPrestige = amount - fromGold;
+
+    if (fromGold > 0) {
+      this.gold -= fromGold;
+      this.scene.events.emit(GameEvents.PLAYER_GOLD_CHANGED, this.gold);
+    }
+
+    if (fromPrestige > 0) {
+      const paid = this.scene.prestigeSystem?.spendPrestigePoints(fromPrestige);
+      if (!paid) {
+        // Prestij düşüşü başarısızsa altını geri ver (atomik tutarlılık)
+        this.gold += fromGold;
+        this.scene.events.emit(GameEvents.PLAYER_GOLD_CHANGED, this.gold);
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /** Chunk açma vb. — prestij kullanılmaz, sadece altın */
+  spendGoldOnly(amount) {
+    if (!this.canAffordGoldOnly(amount)) {
       return false;
     }
 
@@ -189,18 +234,42 @@ export default class Player {
     this.scene.events.emit(GameEvents.PLAYER_RESOURCES_CHANGED, this.resources);
   }
 
+  /** Kaynak + prestij toplamı (yükseltme) */
   canAffordResources(amount) {
+    return this.resources + this.getPrestigePoints() >= amount;
+  }
+
+  canAffordResourcesOnly(amount) {
     return this.resources >= amount;
   }
 
-  /** BuildingSystem (bina yükseltme) tarafından çağrılır; yetersiz kaynakta harcamayı reddeder */
+  needsPrestigeForResources(amount) {
+    return amount > 0 && !this.canAffordResourcesOnly(amount) && this.canAffordResources(amount);
+  }
+
+  /** Önce kaynak, yetmezse prestij */
   spendResources(amount) {
     if (!this.canAffordResources(amount)) {
       return false;
     }
 
-    this.resources -= amount;
-    this.scene.events.emit(GameEvents.PLAYER_RESOURCES_CHANGED, this.resources);
+    const fromResources = Math.min(this.resources, amount);
+    const fromPrestige = amount - fromResources;
+
+    if (fromResources > 0) {
+      this.resources -= fromResources;
+      this.scene.events.emit(GameEvents.PLAYER_RESOURCES_CHANGED, this.resources);
+    }
+
+    if (fromPrestige > 0) {
+      const paid = this.scene.prestigeSystem?.spendPrestigePoints(fromPrestige);
+      if (!paid) {
+        this.resources += fromResources;
+        this.scene.events.emit(GameEvents.PLAYER_RESOURCES_CHANGED, this.resources);
+        return false;
+      }
+    }
+
     return true;
   }
 

@@ -94,7 +94,7 @@ export default class UnlockPrompt {
     }
 
     const cost = this.fogOfWarSystem.getUnlockCost();
-    const affordable = this.player.canAfford(cost);
+    const affordable = this.player.canAffordGoldOnly(cost);
 
     this.label.setText(`Bu bölgeyi aç: ${cost} altın`);
     this.background.setFillStyle(affordable ? AFFORDABLE_COLOR : UNAFFORDABLE_COLOR, 0.92);

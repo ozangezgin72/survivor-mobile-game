@@ -19,6 +19,7 @@ export default class HUD {
     this.createHealthBar();
     this.createGoldCounter();
     this.createResourceCounter();
+    this.createPrestigeCounter();
     this.createMuteButton();
 
     this.handleHealthChanged = this.handleHealthChanged.bind(this);
@@ -26,12 +27,14 @@ export default class HUD {
     this.handleResourcesChanged = this.handleResourcesChanged.bind(this);
     this.handlePlayerDied = this.handlePlayerDied.bind(this);
     this.handleLevelUp = this.handleLevelUp.bind(this);
+    this.handlePrestigeChanged = this.handlePrestigeChanged.bind(this);
 
     this.scene.events.on(GameEvents.PLAYER_HEALTH_CHANGED, this.handleHealthChanged);
     this.scene.events.on(GameEvents.PLAYER_GOLD_CHANGED, this.handleGoldChanged);
     this.scene.events.on(GameEvents.PLAYER_RESOURCES_CHANGED, this.handleResourcesChanged);
     this.scene.events.on(GameEvents.PLAYER_DIED, this.handlePlayerDied);
     this.scene.events.on(GameEvents.PLAYER_LEVEL_UP, this.handleLevelUp);
+    this.scene.events.on(GameEvents.PRESTIGE_CHANGED, this.handlePrestigeChanged);
 
     this.handleResize = this.handleResize.bind(this);
     this.scene.scale.on('resize', this.handleResize);
@@ -114,6 +117,48 @@ export default class HUD {
     this.resourceText.setOrigin(0, 0.5);
     this.resourceText.setScrollFactor(0);
     this.resourceText.setDepth(1000);
+  }
+
+  /** Kalıcı prestij bakiyesi — kaynak sayacının altında, mor elmas ikon */
+  createPrestigeCounter() {
+    const x = HUD_MARGIN_X + GOLD_ICON_RADIUS;
+    const y = HUD_MARGIN_Y + HEALTH_BAR_HEIGHT + 20 + 28 + 28;
+    const size = GOLD_ICON_RADIUS * 1.6;
+
+    this.prestigeIcon = this.scene.add.polygon(
+      x,
+      y,
+      [0, -size, size * 0.7, 0, 0, size, -size * 0.7, 0],
+      0x7e57c2,
+    );
+    this.prestigeIcon.setStrokeStyle(2, 0xb39ddb, 1);
+    this.prestigeIcon.setScrollFactor(0);
+    this.prestigeIcon.setDepth(1000);
+
+    const points = this.scene.prestigeSystem?.getTotalPrestigePoints?.() ?? 0;
+    this.prestigeText = this.scene.add.text(x + GOLD_ICON_RADIUS + 8, y, `${points}`, {
+      fontSize: '18px',
+      color: '#b39ddb',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 3,
+    });
+    this.prestigeText.setOrigin(0, 0.5);
+    this.prestigeText.setScrollFactor(0);
+    this.prestigeText.setDepth(1000);
+  }
+
+  refreshPrestigeDisplay(totalPoints) {
+    if (!this.prestigeText) {
+      return;
+    }
+    const points =
+      totalPoints != null ? totalPoints : (this.scene.prestigeSystem?.getTotalPrestigePoints?.() ?? 0);
+    this.prestigeText.setText(`${points}`);
+  }
+
+  handlePrestigeChanged(totalPoints) {
+    this.refreshPrestigeDisplay(totalPoints);
   }
 
   /** Minimap'in solunda küçük ses aç/kapa butonu */
@@ -233,8 +278,11 @@ export default class HUD {
     this.scene.events.off(GameEvents.PLAYER_RESOURCES_CHANGED, this.handleResourcesChanged);
     this.scene.events.off(GameEvents.PLAYER_DIED, this.handlePlayerDied);
     this.scene.events.off(GameEvents.PLAYER_LEVEL_UP, this.handleLevelUp);
+    this.scene.events.off(GameEvents.PRESTIGE_CHANGED, this.handlePrestigeChanged);
     this.muteButtonBg?.destroy();
     this.muteButtonText?.destroy();
+    this.prestigeIcon?.destroy();
+    this.prestigeText?.destroy();
     this.gameOverScreen.destroy();
   }
 }

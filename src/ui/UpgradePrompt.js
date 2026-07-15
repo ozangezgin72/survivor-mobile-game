@@ -6,28 +6,25 @@ import {
   UNLOCK_PROMPT_BOTTOM_GAP,
 } from '../config/Constants.js';
 
-const AFFORDABLE_COLOR = 0x4a148c;
+const AFFORDABLE_COLOR = 0x2e7d32;
+const PRESTIGE_COLOR = 0x6a1b9a;
 const UNAFFORDABLE_COLOR = 0x424242;
-const MAX_LEVEL_COLOR = 0x37474f;
 
 /**
  * Yakındaki bina için güç yükseltme prompt'u.
- * currentPowerLevel < maxUnlockedPowerLevel ise "Yükselt (X → X+1): N kaynak";
- * aksi halde "Maksimum Seviye" (devre dışı).
+ * Kaynak yetmezse ama prestij yetiyorsa mor "Prestij ile yükselt" — dokunuş = açık onay.
+ * İkinci dokunuş (onay) olmadan prestij harcanmaz: ilk dokunuşta "Onayla" ister.
  */
 export default class UpgradePrompt {
   constructor(scene, player, buildingSystem) {
     this.scene = scene;
     this.player = player;
     this.buildingSystem = buildingSystem;
+    this.prestigeConfirmBuildingId = null;
 
     this.handleResize = this.handleResize.bind(this);
     this.createPrompt();
     this.scene.scale.on('resize', this.handleResize);
-  }
-
-  get fogOfWarSystem() {
-    return this.buildingSystem.fogOfWarSystem;
   }
 
   getPromptPosition() {
@@ -62,10 +59,11 @@ export default class UpgradePrompt {
     this.background.on('pointerdown', () => this.handleTap());
 
     this.label = this.scene.add.text(this.x + UNLOCK_PROMPT_WIDTH / 2, this.y + UNLOCK_PROMPT_HEIGHT / 2, '', {
-      fontSize: '14px',
+      fontSize: '13px',
       color: '#ffffff',
       fontStyle: 'bold',
       align: 'center',
+      wordWrap: { width: UNLOCK_PROMPT_WIDTH - 16 },
     });
     this.label.setOrigin(0.5, 0.5);
     this.label.setScrollFactor(0);
@@ -90,37 +88,64 @@ export default class UpgradePrompt {
   update() {
     const building = this.buildingSystem.nearestUpgradeableBuilding;
 
-    if (!building) {
+    if (!building || !building.canUpgrade()) {
+      this.prestigeConfirmBuildingId = null;
       this.setVisible(false);
       return;
     }
 
-    const maxPower = this.fogOfWarSystem?.getMaxUnlockedPowerLevel?.() ?? 0;
-    const canUpgrade = building.canUpgrade(maxPower);
-
-    if (!canUpgrade) {
-      this.label.setText(`${building.name}: Maksimum Seviye (Güç ${building.currentPowerLevel})`);
-      this.background.setFillStyle(MAX_LEVEL_COLOR, 0.92);
-      this.setVisible(true);
-      return;
+    if (this.prestigeConfirmBuildingId != null && this.prestigeConfirmBuildingId !== building.id) {
+      this.prestigeConfirmBuildingId = null;
     }
 
     const from = building.currentPowerLevel;
     const to = from + 1;
     const cost = building.getNextUpgradeCost();
-    const affordable = this.player.canAffordResources(cost);
+    const canPay = this.player.canAffordResources(cost);
+    const needsPrestige = this.player.needsPrestigeForResources(cost);
+    const awaitingConfirm = needsPrestige && this.prestigeConfirmBuildingId === building.id;
 
-    this.label.setText(`${building.name} yükselt (${from} → ${to}): ${cost} kaynak`);
-    this.background.setFillStyle(affordable ? AFFORDABLE_COLOR : UNAFFORDABLE_COLOR, 0.92);
+    if (!canPay) {
+      this.label.setText(`${building.name}: yetersiz (${cost})`);
+      this.background.setFillStyle(UNAFFORDABLE_COLOR, 0.92);
+      this.background.setStrokeStyle(2, 0x9e9e9e, 1);
+    } else if (needsPrestige) {
+      this.label.setText(
+        awaitingConfirm
+          ? `Onayla: Prestij ile yükselt (${from}→${to}): ${cost}`
+          : `Prestij ile yükselt (${from}→${to}): ${cost}`,
+      );
+      this.background.setFillStyle(PRESTIGE_COLOR, 0.92);
+      this.background.setStrokeStyle(2, 0xe1bee7, 1);
+    } else {
+      this.label.setText(`${building.name} yükselt (${from} → ${to}): ${cost} kaynak`);
+      this.background.setFillStyle(AFFORDABLE_COLOR, 0.92);
+      this.background.setStrokeStyle(2, 0xa5d6a7, 1);
+    }
+
     this.setVisible(true);
   }
 
   handleTap() {
     const building = this.buildingSystem.nearestUpgradeableBuilding;
-    const maxPower = this.fogOfWarSystem?.getMaxUnlockedPowerLevel?.() ?? 0;
 
-    if (!building || !building.canUpgrade(maxPower)) {
+    if (!building || !building.canUpgrade()) {
       return;
+    }
+
+    const cost = building.getNextUpgradeCost();
+    if (!this.player.canAffordResources(cost)) {
+      this.flashDenied();
+      return;
+    }
+
+    // Prestij kullanılacaksa çift dokunuş onayı
+    if (this.player.needsPrestigeForResources(cost)) {
+      if (this.prestigeConfirmBuildingId !== building.id) {
+        this.prestigeConfirmBuildingId = building.id;
+        return;
+      }
+      this.prestigeConfirmBuildingId = null;
     }
 
     const success = this.buildingSystem.tryUpgradeNearestBuilding();

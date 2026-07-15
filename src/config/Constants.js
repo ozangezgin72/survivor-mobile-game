@@ -180,6 +180,12 @@ export const FOG_OVERLAY_ALPHA = 0.78;
 export const CHUNK_POWER_STAT_MULTIPLIER_PER_LEVEL = 0.2; // her seviyede bina hasar/can/menzil +%20
 export const CHUNK_POWER_COST_MULTIPLIER_PER_LEVEL = 0.25; // her seviyede bina/chunk maliyeti +%25
 
+// --- Sonsuz bina yükseltme maliyet eğrisi ---
+// getUpgradeCost(currentLevel, baseCost): erken faz hızlı (%28), sonra yavaş (%9)
+export const UPGRADE_EARLY_GROWTH_RATE = 0.28;
+export const UPGRADE_EARLY_PHASE_LEVELS = 12;
+export const UPGRADE_LATE_GROWTH_RATE = 0.09;
+
 // --- "Bu bölgeyi aç" prompt UI (Faz 4) ---
 export const UNLOCK_PROMPT_WIDTH = 280;
 export const UNLOCK_PROMPT_HEIGHT = 56;
@@ -230,6 +236,13 @@ export const WAVE_ENEMY_MULTIPLIER = 3; // o anki normal tavanın kaç katı dü
 export const WAVE_DURATION_LIMIT = 45000; // ms - dalga düşmanları bitirilmese de bu süre sonunda dalga zorla biter
 export const WAVE_GOLD_REWARD = 40;
 export const WAVE_RESOURCE_REWARD = 25;
+
+// --- Prestij sistemi ---
+export const PRESTIGE_POINTS_PER_LEVEL = 2;
+export const PRESTIGE_POINTS_PER_KILL = 0.1;
+export const PRESTIGE_POINTS_PER_BUILDING_LEVEL = 5;
+export const PRESTIGE_STORAGE_KEY = 'prestige-total-points';
+export const PRESTIGE_COUNT_STORAGE_KEY = 'prestige-total-count';
 
 // --- Otomatik kayıt (SaveSystem) ---
 export const AUTO_SAVE_INTERVAL = 30000; // ms - periyodik otomatik kayıt aralığı

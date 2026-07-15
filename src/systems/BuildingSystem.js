@@ -64,9 +64,8 @@ export default class BuildingSystem {
   /** UpgradePrompt tarafından çağrılır. @returns {boolean} yükseltme başarılı oldu mu */
   tryUpgradeNearestBuilding() {
     const building = this.nearestUpgradeableBuilding;
-    const maxPower = this.fogOfWarSystem?.getMaxUnlockedPowerLevel?.() ?? 0;
 
-    if (!building || !building.canUpgrade(maxPower)) {
+    if (!building || !building.canUpgrade()) {
       return false;
     }
 
@@ -105,6 +104,11 @@ export default class BuildingSystem {
    */
   canAfford(BuildingClass, x = this.player.x, y = this.player.y) {
     return this.player.canAfford(this.getBuildingCostAt(BuildingClass, x, y));
+  }
+
+  /** Altın yetmiyor ama prestij ile tamamlanabilir mi? */
+  needsPrestigeForBuilding(BuildingClass, x = this.player.x, y = this.player.y) {
+    return this.player.needsPrestigeForGold(this.getBuildingCostAt(BuildingClass, x, y));
   }
 
   /** Bu dünya koordinatına yerleştirme geçerli mi? (dünya dışı / sisli / oyuncuya çok yakın / bina üstüne bina) */

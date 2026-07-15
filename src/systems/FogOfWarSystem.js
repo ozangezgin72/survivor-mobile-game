@@ -33,6 +33,7 @@ export default class FogOfWarSystem {
     this.grid = []; // grid[row][col]
     this.unlockedCount = 0; // şimdiye kadar ÜCRETLİ açılan chunk sayısı (maliyet eğrisi için)
     this.nearestLockedChunk = null;
+    this.mapFullyUnlockedEmitted = false;
 
     // Oyuncunun sis içine girmesini önlemek için son geçerli (unlocked) konum
     this.lastValidX = player.x;
@@ -147,7 +148,7 @@ export default class FogOfWarSystem {
       return false;
     }
 
-    const paid = this.player.spendGold(this.getUnlockCost());
+    const paid = this.player.spendGoldOnly(this.getUnlockCost());
 
     if (!paid) {
       return false;
@@ -163,6 +164,45 @@ export default class FogOfWarSystem {
     chunk.unlock();
     this.populateChunk(chunk);
     this.scene.events.emit(GameEvents.CHUNK_UNLOCKED, chunk);
+    this.checkMapFullyUnlocked();
+  }
+
+  /** Tüm chunk'lar açık mı? (9x9 = 81) */
+  isMapFullyUnlocked() {
+    return this.chunks.every((chunk) => chunk.isUnlocked);
+  }
+
+  /**
+   * Harita tamamlandığında bir kez MAP_FULLY_UNLOCKED yayınlar.
+   * Kayıt yükleme sonrası da çağrılabilir.
+   */
+  checkMapFullyUnlocked() {
+    if (this.mapFullyUnlockedEmitted || !this.isMapFullyUnlocked()) {
+      return false;
+    }
+
+    // Kayıt yükleme sırasında chunk'lar tek tek açılır; binalar henüz restore
+    // edilmemiş olabilir — emit'i applySaveData sonrası check'e bırak.
+    if (this.scene.suppressAutoSave) {
+      return false;
+    }
+
+    this.mapFullyUnlockedEmitted = true;
+    this.scene.events.emit(GameEvents.MAP_FULLY_UNLOCKED);
+    return true;
+  }
+
+  /**
+   * DEBUG: tüm chunk'ları ücretsiz açar (konsol testi).
+   * Örn: game.scene.keys.MainScene.fogOfWarSystem.debugUnlockAllChunks()
+   */
+  debugUnlockAllChunks() {
+    for (const chunk of this.chunks) {
+      if (chunk.isUnlocked) {
+        continue;
+      }
+      this.unlockChunk(chunk);
+    }
   }
 
   /** Yeni açılan bir chunk'a birkaç kaynak node'u ekler (performans: sadece unlocked alanlarda obje var) */

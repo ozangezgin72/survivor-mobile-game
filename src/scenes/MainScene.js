@@ -16,7 +16,10 @@ import ResourceSystem from '../systems/ResourceSystem.js';
 import FogOfWarSystem from '../systems/FogOfWarSystem.js';
 import DifficultySystem from '../systems/DifficultySystem.js';
 import WaveSystem from '../systems/WaveSystem.js';
+import PrestigeSystem from '../systems/PrestigeSystem.js';
+import ScoreSystem from '../systems/ScoreSystem.js';
 import SaveSystem, { BUILDING_BY_ID, DEFAULT_SAVE_SLOT } from '../systems/SaveSystem.js';
+import PrestigePrompt from '../ui/PrestigePrompt.js';
 import {
   createGroundTexture,
   createPlayerTexture,
@@ -63,9 +66,10 @@ export default class MainScene extends Phaser.Scene {
   }
 
   init(data = {}) {
-    // scene.start('MainScene', { loadedSaveData, slotKey }) ile gelir
+    // scene.start/restart('MainScene', { loadedSaveData, slotKey, prestigeBanner }) ile gelir
     this.loadedSaveData = data.loadedSaveData ?? null;
     this.currentSlotKey = data.slotKey ?? DEFAULT_SAVE_SLOT;
+    this.prestigeBannerData = data.prestigeBanner ?? null;
   }
 
   create() {
@@ -90,6 +94,10 @@ export default class MainScene extends Phaser.Scene {
     this.goldSystem = new GoldSystem(this, this.player);
     this.audioSystem = new AudioSystem(this, this.player);
     this.saveSystem = new SaveSystem();
+    this.prestigePrompt = new PrestigePrompt(this, null);
+    this.prestigeSystem = new PrestigeSystem(this, this.prestigePrompt);
+    this.prestigePrompt.prestigeSystem = this.prestigeSystem;
+    this.scoreSystem = new ScoreSystem(this);
 
     this.minimap = new Minimap(this, this.player, this.fogOfWarSystem, this.enemySpawner);
     this.hud = new HUD(this, this.player);
@@ -108,6 +116,14 @@ export default class MainScene extends Phaser.Scene {
       this.loadedSaveData = null;
       this.suppressAutoSave = false;
       this.audioSystem.syncFromPlayer();
+      // Kayıt zaten tam haritaysa prestij prompt'unu bir kez tetikle
+      this.fogOfWarSystem.checkMapFullyUnlocked();
+    }
+
+    if (this.prestigeBannerData) {
+      const { gain, total } = this.prestigeBannerData;
+      this.prestigeBannerData = null;
+      this.prestigePrompt.showCompletionBanner(gain, total);
     }
   }
 
@@ -210,24 +226,28 @@ export default class MainScene extends Phaser.Scene {
   }
 
   update(time, delta) {
+    // Sekme focus kaybı / frame hitch sonrası aşırı büyük delta, hız/mesafe hesaplarını
+    // bozmasın diye üst sınır (≈30 FPS altı tek kare).
+    const clampedDelta = Math.min(delta, 33);
+
     const moveVector = this.resolveMoveVector();
     this.player.move(moveVector);
 
     // Oyuncunun sis içine adım atmasını engelle - fiziksel hareketten hemen sonra çağrılmalı
-    this.fogOfWarSystem.update(time, delta);
+    this.fogOfWarSystem.update(time, clampedDelta);
 
     const walls = this.buildingSystem.getWalls();
-    this.enemySpawner.update(time, delta, walls);
-    this.waveSystem.update(time, delta);
-    this.combatSystem.update(time, delta);
-    this.goldSystem.update(time, delta);
-    this.resourceSystem.update(time, delta);
-    this.buildingSystem.update(time, delta);
-    this.buildMenu.update(time, delta);
-    this.unlockPrompt.update(time, delta);
-    this.upgradePrompt.update(time, delta);
-    this.waveBanner.update(time, delta);
-    this.minimap.update(time, delta);
+    this.enemySpawner.update(time, clampedDelta, walls);
+    this.waveSystem.update(time, clampedDelta);
+    this.combatSystem.update(time, clampedDelta);
+    this.goldSystem.update(time, clampedDelta);
+    this.resourceSystem.update(time, clampedDelta);
+    this.buildingSystem.update(time, clampedDelta);
+    this.buildMenu.update(time, clampedDelta);
+    this.unlockPrompt.update(time, clampedDelta);
+    this.upgradePrompt.update(time, clampedDelta);
+    this.waveBanner.update(time, clampedDelta);
+    this.minimap.update(time, clampedDelta);
 
     this.updateDebugOverlay();
   }
@@ -278,8 +298,9 @@ export default class MainScene extends Phaser.Scene {
     // Kamera haritanın dışına çıkamaz
     camera.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
-    // Karakteri hafif bir yumuşatma (lerp) ile merkezde tutarak takip eder
-    camera.startFollow(this.player.sprite, true, 0.1, 0.1);
+    // Anında takip — düşük lerp (örn. 0.1) duruştan harekete geçerken kameranın
+    // kademeli yetişmesi "spin-up" (yavaş başlayıp hızlanma) hissi yaratıyordu.
+    camera.startFollow(this.player.sprite, true, 1, 1);
   }
 
   setupInput() {

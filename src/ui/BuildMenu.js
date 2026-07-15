@@ -49,6 +49,7 @@ export default class BuildMenu {
     this.hasManuallyPositioned = false;
     this.buttons = [];
     this.lastDisplayedPowerLevel = null;
+    this.prestigeArmConfirmClass = null;
 
     this.createBar();
     this.createButtons();
@@ -58,7 +59,9 @@ export default class BuildMenu {
     this.scene.scale.on('resize', this.handleResize);
 
     this.handleGoldChanged = this.handleGoldChanged.bind(this);
+    this.handlePrestigeChanged = this.handlePrestigeChanged.bind(this);
     this.scene.events.on(GameEvents.PLAYER_GOLD_CHANGED, this.handleGoldChanged);
+    this.scene.events.on(GameEvents.PRESTIGE_CHANGED, this.handlePrestigeChanged);
   }
 
   /**
@@ -190,6 +193,18 @@ export default class BuildMenu {
       return;
     }
 
+    // Prestij kullanılacaksa: 1. dokunuş uyarı, 2. dokunuş silahlan
+    if (this.buildingSystem.needsPrestigeForBuilding(BuildingClass)) {
+      if (this.prestigeArmConfirmClass !== BuildingClass) {
+        this.prestigeArmConfirmClass = BuildingClass;
+        this.refreshAllButtonStates();
+        return;
+      }
+      this.prestigeArmConfirmClass = null;
+    } else {
+      this.prestigeArmConfirmClass = null;
+    }
+
     this.arm(BuildingClass);
   }
 
@@ -197,22 +212,45 @@ export default class BuildMenu {
     this.buttons.forEach((button) => this.refreshButtonState(button));
   }
 
-  /** Yetersiz altın -> soluk/gri görünüm; şu an seçili olan bina -> sarı çerçeve ile vurgulanır */
+  /** Yetersiz bakiye -> soluk; prestij gerekiyorsa mor fiyat; seçili -> sarı çerçeve */
   refreshButtonState(button) {
     const cost = this.buildingSystem.getBuildingCostAt(button.BuildingClass, this.player.x, this.player.y);
-    button.costText.setText(`${cost}`);
-
     const affordable = this.buildingSystem.canAfford(button.BuildingClass, this.player.x, this.player.y);
+    const needsPrestige = this.buildingSystem.needsPrestigeForBuilding(
+      button.BuildingClass,
+      this.player.x,
+      this.player.y,
+    );
+    const awaitingConfirm = this.prestigeArmConfirmClass === button.BuildingClass;
     const armed = this.armedBuildingClass === button.BuildingClass;
+
+    if (needsPrestige) {
+      button.costText.setText(awaitingConfirm ? `OK ${cost}★` : `${cost}★`);
+      button.costText.setColor('#b39ddb');
+    } else {
+      button.costText.setText(`${cost}`);
+      button.costText.setColor('#ffd54f');
+    }
 
     const alpha = affordable ? 1 : 0.4;
     button.background.setAlpha(alpha);
     button.icon.setAlpha(alpha);
     button.costText.setAlpha(alpha);
-    button.background.setStrokeStyle(armed ? 3 : 2, armed ? 0xffd54f : 0xffffff, armed ? 1 : 0.8);
+    button.background.setFillStyle(needsPrestige ? 0x311b92 : 0x263238, needsPrestige ? 0.95 : 0.9);
+    button.background.setStrokeStyle(
+      armed || awaitingConfirm ? 3 : 2,
+      armed ? 0xffd54f : awaitingConfirm || needsPrestige ? 0xb39ddb : 0xffffff,
+      armed || awaitingConfirm ? 1 : 0.8,
+    );
   }
 
   handleGoldChanged() {
+    this.prestigeArmConfirmClass = null;
+    this.refreshAllButtonStates();
+  }
+
+  handlePrestigeChanged() {
+    this.prestigeArmConfirmClass = null;
     this.refreshAllButtonStates();
   }
 
@@ -227,6 +265,7 @@ export default class BuildMenu {
 
   disarm() {
     this.armedBuildingClass = null;
+    this.prestigeArmConfirmClass = null;
     this.destroyGhost();
     this.refreshAllButtonStates();
   }
@@ -355,6 +394,7 @@ export default class BuildMenu {
   destroy() {
     this.scene.scale.off('resize', this.handleResize);
     this.scene.events.off(GameEvents.PLAYER_GOLD_CHANGED, this.handleGoldChanged);
+    this.scene.events.off(GameEvents.PRESTIGE_CHANGED, this.handlePrestigeChanged);
     this.destroyGhost();
   }
 }

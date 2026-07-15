@@ -1,4 +1,5 @@
-import { getChunkStatMultiplier, getChunkCostMultiplier, getPowerLevelAt } from '../../utils/ChunkPower.js';
+import { getChunkStatMultiplier, getPowerLevelAt } from '../../utils/ChunkPower.js';
+import { getUpgradeCost } from '../../utils/UpgradeCost.js';
 
 let nextBuildingId = 1;
 
@@ -6,8 +7,8 @@ let nextBuildingId = 1;
  * Tüm inşa edilebilir yapıların ortak base class'ı.
  *
  * Chunk gücü: kurulduğu (veya yükseltildiği) power seviyesine göre health/attackDamage/
- * attackRange = base * (1 + currentPowerLevel * STAT_MULT). Yükseltme, currentPowerLevel'ı
- * +1 artırıp statları base'den yeniden hesaplar; tavan = açılmış chunk'ların max gücü.
+ * attackRange = base * (1 + currentPowerLevel * STAT_MULT). Yükseltme teorik olarak sonsuz;
+ * maliyet getUpgradeCost ile erken/geç faz eğrisini izler.
  */
 export default class Building {
   constructor(scene, x, y, config) {
@@ -80,11 +81,7 @@ export default class Building {
 
   /** Bir sonraki power seviyesine yükseltme maliyeti (kaynak) */
   getNextUpgradeCost() {
-    if (this.baseUpgradeCost <= 0) {
-      return 0;
-    }
-
-    return Math.max(1, Math.round(this.baseUpgradeCost * getChunkCostMultiplier(this.currentPowerLevel + 1)));
+    return getUpgradeCost(this.currentPowerLevel, this.baseUpgradeCost);
   }
 
   /** @deprecated getNextUpgradeCost kullan; UpgradePrompt uyumu için */
@@ -92,18 +89,11 @@ export default class Building {
     return this.getNextUpgradeCost();
   }
 
-  /**
-   * @param {number} maxUnlockedPowerLevel - FogOfWarSystem.getMaxUnlockedPowerLevel()
-   */
-  canUpgrade(maxUnlockedPowerLevel) {
-    if (maxUnlockedPowerLevel === undefined) {
-      maxUnlockedPowerLevel = this.scene.fogOfWarSystem?.getMaxUnlockedPowerLevel?.() ?? 0;
-    }
-
-    return this.isAlive && this.baseUpgradeCost > 0 && this.currentPowerLevel < maxUnlockedPowerLevel;
+  canUpgrade() {
+    return this.isAlive && this.baseUpgradeCost > 0;
   }
 
-  /** Kayıt yükleme vb. için tavan kontrolü olmadan güç seviyesi ayarla */
+  /** Kayıt yükleme vb. için güç seviyesi ayarla */
   setPowerLevel(powerLevel, options = {}) {
     this.currentPowerLevel = Math.max(0, powerLevel);
     this.applyChunkPowerScaling({ fillHealth: options.fillHealth === true });
@@ -113,9 +103,7 @@ export default class Building {
    * BuildingSystem ödeme yaptıktan sonra çağırır. currentPowerLevel += 1, statlar base'den yenilenir.
    */
   upgrade() {
-    const maxUnlocked = this.scene.fogOfWarSystem?.getMaxUnlockedPowerLevel?.() ?? 0;
-
-    if (!this.canUpgrade(maxUnlocked)) {
+    if (!this.canUpgrade()) {
       return false;
     }
 

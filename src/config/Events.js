@@ -18,4 +18,6 @@ export const GameEvents = {
   WAVE_WARNING: 'wave-warning',
   WAVE_STARTED: 'wave-started',
   WAVE_COMPLETED: 'wave-completed',
+  MAP_FULLY_UNLOCKED: 'map-fully-unlocked',
+  PRESTIGE_CHANGED: 'prestige-changed',
 };

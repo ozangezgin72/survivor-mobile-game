@@ -70,15 +70,27 @@ export default class GameOverScreen {
     const kills = this.player.killCount ?? 0;
     const gold = this.player.gold ?? 0;
     const survivalTime = this.formatSurvivalTime(this.scene.time.now);
+    const { finalScore, roundScore, prestigeMultiplier } = this.scene.scoreSystem?.calculateFinalScore?.() ?? {
+      finalScore: 0,
+      roundScore: 0,
+      prestigeMultiplier: 1,
+    };
 
-    return [
+    const lines = [
       'Performans Özeti',
       '',
+      `Skor: ${finalScore}`,
       `Seviye: ${level}`,
       `Öldürme: ${kills}`,
       `Altın: ${gold}`,
       `Hayatta kalma: ${survivalTime}`,
-    ].join('\n');
+    ];
+
+    if (prestigeMultiplier > 1) {
+      lines.push(`Prestij çarpanı: x${prestigeMultiplier.toFixed(1)} (ham: ${roundScore})`);
+    }
+
+    return lines.join('\n');
   }
 
   formatSurvivalTime(elapsedMs) {

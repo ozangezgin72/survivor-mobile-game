@@ -42,6 +42,12 @@ const GameConfig = {
     },
   },
 
+  // Sekme focus dönüşü / hitch sonrası delta sıçramalarını yumuşatır (spin-up / teleport önlemi)
+  fps: {
+    target: 60,
+    smoothStep: true,
+  },
+
   // Joystick + ileride eklenecek dokunmatik butonlar (örn. saldırı butonu) için
   // birden fazla eş zamanlı dokunuşa izin ver
   input: {
