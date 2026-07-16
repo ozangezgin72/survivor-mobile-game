@@ -1,24 +1,41 @@
 # Survivor Mobile Game
 
-Hyper-casual mobil strateji/aksiyon oyunu — **Faz 1: İskelet + Hareket Sistemi**
+Hyper-casual **survivor + kingdom-building** hibriti: otomatik savaş, harita genişletme, sonsuz bina yükseltmesi, prestij/reset döngüsü ve paylaşılabilir leaderboard.
 
-Phaser 3 + Vite ile kurulmuş, mobile-first (dikey ekran) bir top-down oyun temeli.
-Bu fazda sadece proje iskeleti, büyük harita, kamera takibi ve joystick/klavye ile
-karakter hareketi var. Savaş, düşman, inşa sistemleri ve gerçek pixel-art sprite'lar
-**henüz eklenmedi** — bunlar sonraki fazlarda ayrı promptlarla gelecek.
+**Canlı demo:** [https://survivor-mobile-game.vercel.app](https://survivor-mobile-game.vercel.app)
 
-## Kullanılan teknolojiler
+Mobile-first (dikey 720×1280), Phaser 3 + Vite. Masaüstünde de responsive çalışır (klavye + fare ile joystick).
 
-| Paket | Versiyon | Amaç |
-|---|---|---|
-| [Phaser](https://phaser.io/) | 3.90.x | Oyun motoru (Phaser **3**, Phaser 4 değil) |
-| [Vite](https://vite.dev/) | 8.1.x | Build tool / dev server |
-| [phaser3-rex-plugins](https://rexrainbow.github.io/phaser3-rex-notes/) | 1.80.x | Sanal joystick (virtual joystick) eklentisi |
+## Özellikler
+
+- **Hareket** — Sanal joystick (mobil) + WASD/ok tuşları (masaüstü); 8 yön, sabit hız
+- **Otomatik savaş** — Oyuncu ve kuleler menzildeki en yakın düşmana otomatik ateş eder
+- **5 bina tipi** — Okçu kulesi, top, füze kulesi, duvar, kaynak çıkarıcı; kaynakla **sonsuz yükseltme** (erken/geç maliyet eğrisi)
+- **4 düşman tipi** — Normal, hızlı, tank, menzilli; chunk/zaman bazlı zorluk ölçeği
+- **Dalga sistemi** — Periyodik yoğun dalgalar + ödül
+- **Fog of war** — 9×9 chunk haritası (7200×7200); merkezden komşu komşu açılma, artan altın maliyeti
+- **Chunk gücü** — Merkeze Chebyshev mesafesine göre bina gücü, maliyet ve zemin rengi (Tiny Swords tile varyantları)
+- **Prestij** — Harita tamamlanınca reset; kalıcı prestij puanı (bina için onaylı harcama) + azalmayan prestij sayacı
+- **Skor** — Run skoru × prestij çarpanı; Game Over’da gösterilir
+- **3 slotlu kayıt** — localStorage; otomatik kayıt (chunk/bina/periyodik)
+- **Leaderboard** — Cihaz başına best skor (Redis HASH + sorted set); Vercel Serverless API
+- **Görseller** — [Tiny Swords](https://pixelfrog-assets.itch.io/tiny-swords) pixel art (oyuncu okçu animasyonları, chunk zeminleri); diğer birimler hâlâ placeholder
+- **Ses** — Web Audio ile prosedürel bipler (ölüm, altın)
+- **UI** — Sıcak tonlu modern menü (altın/turuncu butonlar); HUD, minimap, inşa/yükselt/aç prompt’ları
+
+## Teknoloji yığını
+
+| Katman | Teknoloji |
+|--------|-----------|
+| Oyun motoru | [Phaser 3](https://phaser.io/) + [rex Virtual Joystick](https://rexrainbow.github.io/phaser3-rex-notes/) |
+| Build | [Vite](https://vite.dev/) |
+| Hosting | [Vercel](https://vercel.com/) |
+| API | Vercel Serverless Functions (`/api/*`) |
+| Leaderboard DB | Redis (`REDIS_URL`) + [ioredis](https://github.com/redis/ioredis) |
 
 ## Kurulum
 
-Node.js 20.19+ (veya 22.12+) kurulu olmalı. Bu ortamda Node.js **24.18.0 LTS**
-kurulup doğrulandı.
+Node.js 20.19+ (veya 22.12+) önerilir.
 
 ```bash
 # 1. Bağımlılıkları kur
@@ -28,93 +45,94 @@ npm install
 npm run dev
 ```
 
-Terminalde çıkan `http://localhost:5173/` adresini tarayıcıda aç. Vite hot-reload
-ile çalışır; kodda değişiklik yaptığında sayfa otomatik güncellenir.
+Tarayıcıda `http://localhost:5173/` aç. Vite hot-reload ile çalışır.
 
-### Telefonundan test etme
+> **Not:** Leaderboard API’leri (`/api/submit-score`, `/api/get-leaderboard`) Vite’ın yerel sunucusunda yok. Tam test için Vercel preview/production veya `vercel dev` kullan; `REDIS_URL` ortam değişkeni gerekir.
 
-Bilgisayar ve telefon aynı Wi-Fi ağındaysa:
+### Telefonda test
+
+Bilgisayar ve telefon aynı Wi-Fi’deyse:
 
 ```bash
 npm run dev:host
 ```
 
-Terminalde çıkan `Network: http://<bilgisayarının-ip'si>:5173/` adresini telefonun
-tarayıcısında aç. Dokunmatik joystick gerçek anlamda ancak bu şekilde test edilebilir
-(masaüstü tarayıcıda fare ile joystick'i sürükleyerek de test edebilirsin, ama gerçek
-touch davranışı telefonda görülür).
+Terminaldeki `Network: http://<ip>:5173/` adresini telefonda aç.
 
-### Production build (ileride gerekirse)
+### Production build
 
 ```bash
-npm run build      # dist/ klasörüne optimize edilmiş build alır
-npm run preview     # build'i lokal olarak önizler
+npm run build      # dist/ klasörüne optimize build
+npm run preview    # build’i lokal önizle
 ```
 
 ## Klasör yapısı
 
 ```
 survivor-mobile-game/
-├── index.html                     # Vite giriş noktası
-├── vite.config.js                 # Dev server ayarları (host: true -> mobil test)
-├── package.json
+├── api/                              # Vercel Serverless Functions
+│   ├── _redis.js                     # ioredis bağlantı + CORS / sanitize
+│   ├── submit-score.js               # POST — cihaz başına best skor
+│   └── get-leaderboard.js            # GET — top 20
 ├── public/
-│   └── assets/
-│       ├── sprites/                # Gerçek pixel-art sprite'lar buraya gelecek
-│       └── tilemaps/                # Gerçek tilemap (Tiled JSON vb.) buraya gelecek
+│   └── assets/sprites/               # Tiny Swords (Free Pack) sprite’lar
+├── index.html
+├── vite.config.js
+├── package.json
 └── src/
-    ├── main.js                     # Phaser.Game oluşturulur, sahneler eklenir
-    ├── style.css                   # Mobil tam ekran + touch-action ayarları
+    ├── main.js                       # Phaser.Game + MenuScene / MainScene
+    ├── style.css
     ├── config/
-    │   ├── Constants.js             # Tüm "sihirli sayılar" (dünya boyutu, hız, vb.)
-    │   └── GameConfig.js            # Phaser motor config'i (Scale.FIT, physics, plugin)
+    │   ├── Constants.js              # Oyun dengesi, dünya, UI boyutları
+    │   ├── Events.js                 # GameEvents isimleri
+    │   ├── GameConfig.js             # Phaser config (scale, physics, plugins)
+    │   └── UITheme.js                # Menü renk token’ları
     ├── entities/
-    │   └── Player.js                # Oyuncu class'ı: hareket + savaş/ekonomi placeholder'ları
+    │   ├── Player.js                 # Hareket, ekonomi, animasyonlar
+    │   ├── Enemy.js / enemies/       # Düşman tipleri
+    │   ├── Chunk.js                  # Chunk + zemin tileSprite + sis
+    │   ├── Gold.js, ResourceNode.js
+    │   └── buildings/                # Archer, Cannon, Missile, Wall, Extractor
     ├── scenes/
-    │   └── MainScene.js             # Ana sahne: harita, kamera, input, minimap
-    ├── ui/
-    │   ├── JoystickController.js    # rex virtual joystick sarmalayıcısı
-    │   └── Minimap.js               # Minimap placeholder (köşede boş kutu)
-    └── utils/
-        └── PlaceholderTextures.js   # Zemin + karakter için koddan üretilen basit texture'lar
+    │   ├── MenuScene.js              # Ana menü + slot paneli + leaderboard
+    │   └── MainScene.js              # Ana oyun döngüsü
+    ├── systems/
+    │   ├── CombatSystem.js
+    │   ├── BuildingSystem.js
+    │   ├── FogOfWarSystem.js
+    │   ├── EnemySpawner.js
+    │   ├── DifficultySystem.js
+    │   ├── WaveSystem.js
+    │   ├── GoldSystem.js
+    │   ├── ResourceSystem.js
+    │   ├── SaveSystem.js
+    │   ├── PrestigeSystem.js
+    │   ├── ScoreSystem.js
+    │   └── AudioSystem.js
+    ├── services/
+    │   └── LeaderboardApi.js         # Frontend fetch sarmalayıcı
+    ├── ui/                           # HUD, BuildMenu, prompt’lar, GameOver, …
+    └── utils/                        # ChunkPower, UpgradeCost, DeviceId, textures, …
 ```
-
-`src/ui/` ve `src/utils/` klasörleri, istenen `src/scenes` / `src/entities` / `src/config`
-yapısına ek olarak modülerliği artırmak için eklendi.
-
-## Şu an ne var, ne yok
-
-**Var:**
-- 4000x4000 piksel'lik büyük oyun dünyası (tekrar eden basit doku ile)
-- Karakteri merkezde tutan, dünya dışına çıkmayan kamera takibi
-- Sol-alt köşede sanal joystick (rex plugin) + WASD/ok tuşları (test için)
-- Karakterin 8 yöne sabit hızda hareketi (`Player.direction` ile yön takibi)
-- Sağ-üst köşede boş minimap kutusu (placeholder)
-- Ekranın sol-üstünde geliştirme amaçlı debug metni (pozisyon/yön/hareket durumu)
-
-**Henüz yok (sonraki fazlarda gelecek):**
-- Savaş sistemi, düşman spawn, otomatik saldırı
-- Altın toplama, seviye/yükseltme sistemi
-- İnşa sistemi
-- Gerçek pixel-art sprite'lar ve animasyonlar (tilemap + karakter)
-- Gerçek minimap içeriği (şu an sadece boş kutu)
-
-## Genişletmeye hazır noktalar
-
-- `Player.js` içinde `health`, `maxHealth`, `attackDamage`, `attackRange`, `attackSpeed`,
-  `gold`, `level`, `experience` property'leri placeholder olarak duruyor; savaş/ekonomi
-  sistemleri bunları kullanmaya hazır.
-- `Player.direction` (`idle`, `up`, `down`, `left`, `right`, `up-left`, `up-right`,
-  `down-left`, `down-right`) her frame güncelleniyor; animasyon sistemi eklendiğinde
-  bu değere göre doğru animasyon seçilebilir.
-- `GameConfig.js`'de `input.activePointers: 3` ayarlı; joystick + ileride eklenecek
-  bir saldırı butonu gibi ikinci bir dokunuşu aynı anda desteklemeye hazır.
-- `MainScene.js` içindeki `createWorld()` fonksiyonu, düz renkli `ground-tile` texture'ını
-  gerçek bir Tiled tilemap (`public/assets/tilemaps/`) ile değiştirmeye hazır bir yapıda.
 
 ## Kontroller
 
-- **Mobil / dokunmatik:** Ekranın sol-alt köşesindeki joystick'e bas, sürükle, yönünde
-  karakter sabit hızda hareket eder; parmağı kaldırınca durur.
-- **Klavye (geliştirme için):** `WASD` veya ok tuşları. Çapraz hareket için iki tuşa
-  birlikte bas (örn. `W` + `D` -> yukarı-sağ).
+| Platform | Hareket |
+|----------|---------|
+| Mobil | Sol-alt sanal joystick |
+| Masaüstü | `WASD` veya ok tuşları (çapraz için iki tuş) |
+
+İnşa: alt menüden bina seç → haritada yerleştir. Chunk açma / bina yükseltme: yakına gelince ekrandaki prompt.
+
+## Skor (özet)
+
+```
+roundScore = level×100 + kills×5 + unlockedChunks×200 + Σ(buildingPower)×50
+finalScore = round(roundScore × (1 + prestigeCount × 0.5))
+```
+
+Leaderboard’da her cihazın yalnızca **en yüksek** skoru tutulur (`device-id` + Redis upsert).
+
+## Lisans / asset
+
+Oyun kodu bu repo’dadır. Pixel art görseller [Tiny Swords (Free Pack)](https://pixelfrog-assets.itch.io/tiny-swords) — Pixel Frog; paketin kendi lisans koşullarına uyulmalıdır.
