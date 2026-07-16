@@ -32,6 +32,7 @@ Mobile-first (dikey 720×1280), Phaser 3 + Vite. Masaüstünde de responsive ça
 | Hosting | [Vercel](https://vercel.com/) |
 | API | Vercel Serverless Functions (`/api/*`) |
 | Leaderboard DB | Redis (`REDIS_URL`) + [ioredis](https://github.com/redis/ioredis) |
+| Test | [Vitest](https://vitest.dev/) — birim testleri |
 
 ## Kurulum
 
@@ -65,6 +66,15 @@ Terminaldeki `Network: http://<ip>:5173/` adresini telefonda aç.
 npm run build      # dist/ klasörüne optimize build
 npm run preview    # build’i lokal önizle
 ```
+
+## Testler
+
+```bash
+npm run test         # Vitest ile tüm birim testlerini çalıştırır (tek seferlik)
+npm run test:watch   # İzleme modunda çalıştırır (dosya değişince otomatik tekrar çalışır)
+```
+
+14 birim testi, kritik oyun mantığını doğruluyor: bina yükseltme maliyet eğrisi (UpgradeCost), chunk güç seviyesi hesaplaması (ChunkPower), skor formülü (ScoreSystem), chunk açma maliyeti (UnlockCost).
 
 ## Klasör yapısı
 
@@ -114,6 +124,8 @@ survivor-mobile-game/
     ├── ui/                           # HUD, BuildMenu, prompt’lar, GameOver, …
     └── utils/                        # ChunkPower, UpgradeCost, DeviceId, textures, …
 ```
+
+> **Testler:** Birim testleri kaynak dosyalarının yanında yaşar (aynı isim + `.test.js`, örn. `UpgradeCost.test.js`, `ScoreSystem.test.js`).
 
 ## Kontroller
 
