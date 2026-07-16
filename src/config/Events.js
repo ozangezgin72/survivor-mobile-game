@@ -20,4 +20,6 @@ export const GameEvents = {
   WAVE_COMPLETED: 'wave-completed',
   MAP_FULLY_UNLOCKED: 'map-fully-unlocked',
   PRESTIGE_CHANGED: 'prestige-changed',
+  /** Prestij sıfırlama tamamlandı (yeni run + banner) */
+  PRESTIGE_COMPLETED: 'prestige-completed',
 };

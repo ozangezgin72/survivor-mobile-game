@@ -11,6 +11,7 @@ import EnemySpawner from '../systems/EnemySpawner.js';
 import CombatSystem from '../systems/CombatSystem.js';
 import GoldSystem from '../systems/GoldSystem.js';
 import AudioSystem from '../systems/AudioSystem.js';
+import { preloadGameSounds } from '../utils/GameSounds.js';
 import BuildingSystem from '../systems/BuildingSystem.js';
 import ResourceSystem from '../systems/ResourceSystem.js';
 import FogOfWarSystem from '../systems/FogOfWarSystem.js';
@@ -119,6 +120,9 @@ export default class MainScene extends Phaser.Scene {
       'resource-node-rock',
       `${RESOURCES_DIR}/Gold/Gold Stones/Gold Stone 1.png`,
     );
+
+    // Kenney UI + RPG Audio
+    preloadGameSounds(this);
   }
 
   create() {
@@ -172,6 +176,7 @@ export default class MainScene extends Phaser.Scene {
     if (this.prestigeBannerData) {
       const { gain, total } = this.prestigeBannerData;
       this.prestigeBannerData = null;
+      this.events.emit(GameEvents.PRESTIGE_COMPLETED, { gain, total });
       this.prestigePrompt.showCompletionBanner(gain, total);
     }
   }

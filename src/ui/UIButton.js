@@ -4,6 +4,7 @@ import {
   UI_COLOR_BROWN,
   colorToCss,
 } from '../config/UITheme.js';
+import { playSfx, SFX } from '../utils/GameSounds.js';
 
 let buttonTextureSerial = 0;
 
@@ -102,6 +103,7 @@ export function createButton(scene, x, y, width, height, text, options = {}) {
 
   hit.on('pointerdown', (pointer) => {
     pointer?.event?.stopPropagation?.();
+    playSfx(scene, SFX.CLICK, { volume: 0.4 });
     pressIn();
   });
 

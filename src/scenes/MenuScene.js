@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import SaveSystem from '../systems/SaveSystem.js';
 import LeaderboardScreen from '../ui/LeaderboardScreen.js';
 import { createButton } from '../ui/UIButton.js';
+import { preloadGameSounds } from '../utils/GameSounds.js';
 import {
   UI_COLOR_PRIMARY,
   UI_COLOR_PRIMARY_DARK,
@@ -30,6 +31,11 @@ const GRADIENT_KEY = 'menu-bg-gradient';
 export default class MenuScene extends Phaser.Scene {
   constructor() {
     super('MenuScene');
+  }
+
+  preload() {
+    // Menü buton click sesi (MainScene ile aynı Kenney paketleri)
+    preloadGameSounds(this);
   }
 
   create() {

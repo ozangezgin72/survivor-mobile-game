@@ -74,7 +74,7 @@ export function playDeathSound() {
   playBeep(120, 0.12, 'sawtooth', 0.1, 60);
 }
 
-/** Altın toplama — yüksek, parlak iki notalı bip */
+/** Altın toplama — yüksek, parlak iki notalı bip (yedek; gerçek SFX tercih edilir) */
 export function playCoinSound() {
   playBeep(880, 0.07, 'square', 0.07);
   playBeep(1320, 0.06, 'square', 0.05, null, 0.05);
@@ -83,4 +83,32 @@ export function playCoinSound() {
 /** Hasar / vuruş — orta frekans tık (ileride kullanılabilir) */
 export function playHitSound() {
   playBeep(220, 0.05, 'triangle', 0.09, 140);
+}
+
+/**
+ * Ardışık notalar — üst üste binmeden (delay = index * step).
+ * @param {number[]} frequencies Hz
+ * @param {number} noteDurSec nota süresi
+ * @param {number} stepSec nota başlangıç aralığı (>= noteDurSec → overlap yok)
+ * @param {OscillatorType} [type]
+ * @param {number} [gain]
+ */
+function playArpeggio(frequencies, noteDurSec, stepSec, type = 'triangle', gain = 0.1) {
+  frequencies.forEach((freq, i) => {
+    playBeep(freq, noteDurSec, type, gain, null, i * stepSec);
+  });
+}
+
+/** Seviye atlama — kısa major arpej (C5–E5–G5–C6), ~360ms */
+export function playLevelUpFanfare() {
+  // C5, E5, G5, C6
+  playArpeggio([523.25, 659.25, 783.99, 1046.5], 0.09, 0.09, 'triangle', 0.1);
+}
+
+/** Prestij — daha uzun/epik yükselen arpej (G4→E6), ~660ms */
+export function playPrestigeFanfare() {
+  // G4, C5, E5, G5, C6, E6
+  playArpeggio([392.0, 523.25, 659.25, 783.99, 1046.5, 1318.5], 0.11, 0.11, 'triangle', 0.11);
+  // Final “parıltı” — son notanın üstünde kısa yüksek ping
+  playBeep(1568.0, 0.16, 'sine', 0.08, null, 0.66);
 }
