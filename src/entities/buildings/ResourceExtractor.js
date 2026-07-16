@@ -17,7 +17,7 @@ export default class ResourceExtractor extends Building {
   static displayName = 'Kaynak Çıkarma';
   static icon = '⛏️';
   static cost = RESOURCE_EXTRACTOR_COST;
-  static textureKey = 'resource-extractor-placeholder';
+  static textureKey = 'resource-extractor';
 
   constructor(scene, x, y) {
     super(scene, x, y, {
@@ -25,6 +25,8 @@ export default class ResourceExtractor extends Building {
       cost: ResourceExtractor.cost,
       health: RESOURCE_EXTRACTOR_HEALTH,
       textureKey: ResourceExtractor.textureKey,
+      // House1.png 128x192
+      spriteScale: 52 / 192,
       upgradeCost: RESOURCE_EXTRACTOR_UPGRADE_COST,
     });
 

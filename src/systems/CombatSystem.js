@@ -77,6 +77,7 @@ export default class CombatSystem {
       }
 
       enemy.lastAttackTime = time;
+      enemy.playAttackAnimation?.(target.x, target.y);
       this.resolveAttack(enemy, target, false);
     }
   }

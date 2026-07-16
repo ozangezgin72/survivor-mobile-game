@@ -47,6 +47,12 @@ export default class Building {
 
     this.sprite = scene.add.sprite(x, y, config.textureKey);
     this.sprite.setDepth(6);
+
+    // Görsel ölçek (collision/menzil değişmez); Tiny Swords binaları 128–320px
+    const spriteScale = config.spriteScale ?? 1;
+    if (spriteScale !== 1) {
+      this.sprite.setScale(spriteScale);
+    }
   }
 
   static resolvePowerLevel(scene, x, y) {

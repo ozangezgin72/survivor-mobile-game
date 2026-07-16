@@ -15,7 +15,7 @@ export default class ArcherTower extends Building {
   static displayName = 'Okçu Kulesi';
   static icon = '🏹';
   static cost = ARCHER_TOWER_COST;
-  static textureKey = 'archer-tower-placeholder';
+  static textureKey = 'archer-tower';
 
   constructor(scene, x, y) {
     super(scene, x, y, {
@@ -26,7 +26,8 @@ export default class ArcherTower extends Building {
       attackRange: ARCHER_TOWER_RANGE,
       attackSpeed: ARCHER_TOWER_ATTACK_SPEED,
       textureKey: ArcherTower.textureKey,
-      // Faz 5: kaynak (resources) ile ödenir, altın değil - bkz. Building.js üstü not
+      // Tower.png 128x256 → görsel ~56px yükseklik
+      spriteScale: 56 / 256,
       upgradeCost: ARCHER_TOWER_UPGRADE_COST,
     });
   }

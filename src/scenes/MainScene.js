@@ -21,18 +21,16 @@ import ScoreSystem from '../systems/ScoreSystem.js';
 import SaveSystem, { BUILDING_BY_ID, DEFAULT_SAVE_SLOT } from '../systems/SaveSystem.js';
 import PrestigePrompt from '../ui/PrestigePrompt.js';
 import {
-  createEnemyTexture,
   createGoldTexture,
-  createArcherTowerTexture,
-  createCannonTexture,
-  createMissileTowerTexture,
   createWallTexture,
-  createResourceExtractorTexture,
-  createResourceNodeTexture,
-  createFastEnemyTexture,
-  createTankEnemyTexture,
-  createRangedEnemyTexture,
 } from '../utils/PlaceholderTextures.js';
+import {
+  PAWN_SPRITE,
+  LANCER_SPRITE,
+  WARRIOR_SPRITE,
+  RED_ARCHER_SPRITE,
+  loadEnemySpriteSheets,
+} from '../utils/EnemySprites.js';
 import {
   WORLD_WIDTH,
   WORLD_HEIGHT,
@@ -51,6 +49,10 @@ const ARCHER_SPRITE_DIR =
   'assets/sprites/Tiny Swords (Free Pack)/Units/Blue Units/Archer';
 
 const TERRAIN_DIR = 'assets/sprites/Tiny Swords (Free Pack)/Terrain/Tileset';
+
+const BUILDINGS_DIR = 'assets/sprites/Tiny Swords (Free Pack)/Buildings/Blue Buildings';
+
+const RESOURCES_DIR = 'assets/sprites/Tiny Swords (Free Pack)/Terrain/Resources';
 
 /**
  * Oyunun ana sahnesi.
@@ -95,6 +97,28 @@ export default class MainScene extends Phaser.Scene {
     for (let i = 1; i <= TERRAIN_COLOR_VARIANTS; i += 1) {
       this.load.spritesheet(`terrain-color${i}`, `${TERRAIN_DIR}/Tilemap_color${i}.png`, tileFrame);
     }
+
+    // Tiny Swords Red Units — 4 düşman tipi
+    loadEnemySpriteSheets(this, PAWN_SPRITE);
+    loadEnemySpriteSheets(this, LANCER_SPRITE);
+    loadEnemySpriteSheets(this, WARRIOR_SPRITE);
+    loadEnemySpriteSheets(this, RED_ARCHER_SPRITE);
+
+    // Tiny Swords Blue Buildings — statik PNG (Wall için uygun sprite yok → placeholder)
+    this.load.image('archer-tower', `${BUILDINGS_DIR}/Tower.png`);
+    this.load.image('cannon', `${BUILDINGS_DIR}/Barracks.png`);
+    this.load.image('missile-tower', `${BUILDINGS_DIR}/Castle.png`);
+    this.load.image('resource-extractor', `${BUILDINGS_DIR}/House1.png`);
+
+    // Tiny Swords Resources — ağaç (sheet, idle frame 0) + taş (Gold Stone)
+    this.load.spritesheet('resource-node-tree', `${RESOURCES_DIR}/Wood/Trees/Tree1.png`, {
+      frameWidth: 192,
+      frameHeight: 256,
+    });
+    this.load.image(
+      'resource-node-rock',
+      `${RESOURCES_DIR}/Gold/Gold Stones/Gold Stone 1.png`,
+    );
   }
 
   create() {
@@ -280,21 +304,10 @@ export default class MainScene extends Phaser.Scene {
   // --- Kurulum adımları ---
 
   createPlaceholderTextures() {
-    // Zemin: Tiny Swords Tilemap_colorN (preload) — createGroundTexture kullanılmıyor
-    createEnemyTexture(this);
+    // Zemin/düşman/kule/kaynak node: Tiny Swords (preload)
+    // Wall: Decorations'da çit/duvar yok → placeholder kalır
     createGoldTexture(this);
-
-    createArcherTowerTexture(this);
-    createCannonTexture(this);
-    createMissileTowerTexture(this);
     createWallTexture(this);
-    createResourceExtractorTexture(this);
-    createResourceNodeTexture(this, 'resource-node-tree', 'tree');
-    createResourceNodeTexture(this, 'resource-node-rock', 'rock');
-
-    createFastEnemyTexture(this);
-    createTankEnemyTexture(this);
-    createRangedEnemyTexture(this);
   }
 
   createWorld() {

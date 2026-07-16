@@ -9,14 +9,14 @@ import {
   RANGED_ENEMY_GOLD_DROP_MIN,
   RANGED_ENEMY_GOLD_DROP_MAX,
 } from '../../config/Constants.js';
+import { RED_ARCHER_SPRITE } from '../../utils/EnemySprites.js';
 
 /**
- * Menzilli düşman: oyuncuya yaklaşmaya çalışmaz, menzilden vurur. Oyuncu çok yaklaşırsa
- * (retreatDistance'ın altına girerse) geri çekilir - basit bir mesafe koruma/kiting davranışı.
- * Bu, base Enemy'nin updateCombatMovement()'ını override ederek elde ediliyor.
+ * Menzilli düşman → Tiny Swords Red Archer (kiting davranışı).
  */
 export default class RangedEnemy extends Enemy {
-  static textureKey = 'ranged-enemy-placeholder';
+  static spriteConfig = RED_ARCHER_SPRITE;
+  static textureKey = RED_ARCHER_SPRITE.idleTexture;
   static displayName = 'Menzilli Düşman';
 
   constructor(scene, x, y) {
@@ -28,13 +28,11 @@ export default class RangedEnemy extends Enemy {
       attackSpeed: RANGED_ENEMY_ATTACK_SPEED,
       goldDropMin: RANGED_ENEMY_GOLD_DROP_MIN,
       goldDropMax: RANGED_ENEMY_GOLD_DROP_MAX,
-      textureKey: RangedEnemy.textureKey,
     });
 
     this.retreatDistance = RANGED_ENEMY_RETREAT_DISTANCE;
   }
 
-  /** oyuncu çok yaklaştı -> geri çekil; menzil içinde -> dur ve vur; menzil dışında -> yaklaş */
   updateCombatMovement(distanceToPlayer, player, delta, blockers) {
     if (distanceToPlayer < this.retreatDistance) {
       this.moveAway(player.x, player.y, this.moveSpeed, delta, blockers);
@@ -42,6 +40,8 @@ export default class RangedEnemy extends Enemy {
     } else if (distanceToPlayer <= this.attackRange) {
       this.state = EnemyState.ATTACK;
       this.blockedBy = null;
+      this.isMoving = false;
+      this.faceToward(player.x, player.y);
     } else {
       this.moveToward(player.x, player.y, this.moveSpeed, delta, blockers);
       this.state = this.blockedBy ? EnemyState.ATTACK : EnemyState.CHASE;

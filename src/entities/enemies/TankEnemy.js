@@ -8,13 +8,14 @@ import {
   TANK_ENEMY_GOLD_DROP_MAX,
   ENEMY_ATTACK_RANGE,
 } from '../../config/Constants.js';
+import { WARRIOR_SPRITE } from '../../utils/EnemySprites.js';
 
 /**
- * Tank düşman: yüksek can, yavaş hız, yüksek hasar. Sadece stat farkı var, davranışı
- * base Enemy'den aynen devralınıyor - "yavaş ama dayanıklı" bir varyant.
+ * Tank düşman → Tiny Swords Red Warrior.
  */
 export default class TankEnemy extends Enemy {
-  static textureKey = 'tank-enemy-placeholder';
+  static spriteConfig = WARRIOR_SPRITE;
+  static textureKey = WARRIOR_SPRITE.idleTexture;
   static displayName = 'Tank Düşman';
 
   constructor(scene, x, y) {
@@ -26,7 +27,6 @@ export default class TankEnemy extends Enemy {
       attackSpeed: TANK_ENEMY_ATTACK_SPEED,
       goldDropMin: TANK_ENEMY_GOLD_DROP_MIN,
       goldDropMax: TANK_ENEMY_GOLD_DROP_MAX,
-      textureKey: TankEnemy.textureKey,
     });
   }
 }

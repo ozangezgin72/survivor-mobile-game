@@ -8,13 +8,14 @@ import {
   FAST_ENEMY_GOLD_DROP_MAX,
   ENEMY_ATTACK_RANGE,
 } from '../../config/Constants.js';
+import { LANCER_SPRITE } from '../../utils/EnemySprites.js';
 
 /**
- * Hızlı düşman: düşük can, yüksek hız, düşük hasar. Sadece stat farkı var, davranışı
- * (chase/wander/attack) base Enemy'den aynen devralınıyor - "hızlı ama zayıf" bir varyant.
+ * Hızlı düşman → Tiny Swords Red Lancer.
  */
 export default class FastEnemy extends Enemy {
-  static textureKey = 'fast-enemy-placeholder';
+  static spriteConfig = LANCER_SPRITE;
+  static textureKey = LANCER_SPRITE.idleTexture;
   static displayName = 'Hızlı Düşman';
 
   constructor(scene, x, y) {
@@ -26,7 +27,6 @@ export default class FastEnemy extends Enemy {
       attackSpeed: FAST_ENEMY_ATTACK_SPEED,
       goldDropMin: FAST_ENEMY_GOLD_DROP_MIN,
       goldDropMax: FAST_ENEMY_GOLD_DROP_MAX,
-      textureKey: FastEnemy.textureKey,
     });
   }
 }

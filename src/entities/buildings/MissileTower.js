@@ -14,7 +14,7 @@ export default class MissileTower extends Building {
   static displayName = 'Füze Kulesi';
   static icon = '🚀';
   static cost = MISSILE_TOWER_COST;
-  static textureKey = 'missile-tower-placeholder';
+  static textureKey = 'missile-tower';
 
   constructor(scene, x, y) {
     super(scene, x, y, {
@@ -25,6 +25,8 @@ export default class MissileTower extends Building {
       attackRange: MISSILE_TOWER_RANGE,
       attackSpeed: MISSILE_TOWER_ATTACK_SPEED,
       textureKey: MissileTower.textureKey,
+      // Castle.png 320x256 — en büyük / en güçlü kule
+      spriteScale: 72 / 256,
       upgradeCost: MISSILE_TOWER_UPGRADE_COST,
     });
   }

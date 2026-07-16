@@ -15,7 +15,7 @@ export default class Cannon extends Building {
   static displayName = 'Top';
   static icon = '💣';
   static cost = CANNON_COST;
-  static textureKey = 'cannon-placeholder';
+  static textureKey = 'cannon';
 
   constructor(scene, x, y) {
     super(scene, x, y, {
@@ -27,6 +27,8 @@ export default class Cannon extends Building {
       attackSpeed: CANNON_ATTACK_SPEED,
       splashRadius: CANNON_SPLASH_RADIUS,
       textureKey: Cannon.textureKey,
+      // Barracks.png 192x256
+      spriteScale: 60 / 256,
       upgradeCost: CANNON_UPGRADE_COST,
     });
   }

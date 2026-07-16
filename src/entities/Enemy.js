@@ -15,11 +15,8 @@ import {
   WORLD_WIDTH,
   WORLD_HEIGHT,
 } from '../config/Constants.js';
+import { PAWN_SPRITE, ensureEnemyAnimations } from '../utils/EnemySprites.js';
 
-/**
- * Düşmanın şu anki davranış durumu. Saldırı hasarı CombatSystem'de uygulanıyor;
- * bu state sadece hareket/animasyon amaçlı (ileride "attack" animasyonu bu değere bakacak).
- */
 export const EnemyState = {
   IDLE: 'idle',
   WANDER: 'wander',
@@ -28,30 +25,12 @@ export const EnemyState = {
 };
 
 /**
- * Düşman karakteri (base class).
- *
- * Basit bir davranış makinesi ile çalışır:
- * - Oyuncu ENEMY_CHASE_RANGE dışındaysa spawn noktası etrafında rastgele gezinir (wander)
- * - Menzil içindeyken ne yapılacağı updateCombatMovement()'ta kararlaştırılır (varsayılan:
- *   attackRange'e girince dur, değilse yaklaş) - bkz. Faz 5 notu
- * - Faz 3: yolu bir Wall tarafından kesiliyorsa hareketi durur ve `blockedBy` set edilir;
- *   CombatSystem bunu görüp önce duvarı kırmaya çalışır (basit blocking, pathfinding yok)
- *
- * Faz 5: src/entities/enemies/ klasöründeki FastEnemy/TankEnemy/RangedEnemy gibi alt tipler
- * bu class'ı extend eder. İki genişletme noktası var:
- *   1) constructor'a farklı bir `config` (health/moveSpeed/attackDamage/vb.) geçirmek - stat
- *      farklılıkları için yeterli (bkz. FastEnemy/TankEnemy)
- *   2) updateCombatMovement()'ı override etmek - davranış farklılıkları için (bkz. RangedEnemy,
- *      oyuncu çok yaklaşınca geri çekilir/kiting yapar)
- * Ayrıca DifficultySystem, spawn anında scaleStats() çağırarak chunk/zaman bazlı zorluk
- * artışını (health/attackDamage çarpanı) tüm alt tiplere ortak şekilde uygular.
- *
- * Performans notu: Enemy bilerek Arcade Physics body kullanmıyor (basit x/y güncellemesi
- * yeterli); menzil kontrolleri de fizik "overlap" değil, düz mesafe (distance) hesabı ile
- * yapılıyor. Bu, çok sayıda düşman için çok daha hafif.
+ * Düşman base class — Tiny Swords sprite + idle/run/attack animasyonları.
+ * Alt tipler `static spriteConfig` ile farklı sheet kullanır.
  */
 export default class Enemy {
-  static textureKey = 'enemy-placeholder';
+  static spriteConfig = PAWN_SPRITE;
+  static textureKey = PAWN_SPRITE.idleTexture;
   static displayName = 'Düşman';
 
   constructor(scene, x, y, config = {}) {
@@ -66,9 +45,7 @@ export default class Enemy {
     this.moveSpeed = config.moveSpeed ?? ENEMY_MOVE_SPEED;
     this.attackDamage = config.attackDamage ?? ENEMY_ATTACK_DAMAGE;
     this.attackRange = config.attackRange ?? ENEMY_ATTACK_RANGE;
-    this.attackSpeed = config.attackSpeed ?? ENEMY_ATTACK_SPEED; // saldırı/saniye
-    // scaleStats() bunları baz alır; böylece zorluk çarpanı tekrar uygulanınca
-    // (chunk açılınca / süre ilerleyince) üst üste çarpılmaz, base * multiplier olur.
+    this.attackSpeed = config.attackSpeed ?? ENEMY_ATTACK_SPEED;
     this.baseMaxHealth = this.maxHealth;
     this.baseAttackDamage = this.attackDamage;
     this.difficultyMultiplier = 1;
@@ -77,25 +54,43 @@ export default class Enemy {
       config.goldDropMax ?? ENEMY_GOLD_DROP_MAX,
     );
 
-    this.lastAttackTime = 0; // CombatSystem tarafından okunup güncellenir
+    this.lastAttackTime = 0;
     this.state = EnemyState.IDLE;
+    this.isMoving = false;
+    this.facingLeft = false;
+    this.isAttackAnimating = false;
 
     this.wanderTargetX = x;
     this.wanderTargetY = y;
     this.nextWanderDecisionTime = 0;
-
-    // Faz 3: yolunu tıkayan bir duvara denk gelince (bkz. moveToward) burada tutulur;
-    // CombatSystem bunu görüp önce duvara saldırmayı dener
     this.blockedBy = null;
 
-    this.sprite = this.createSprite(x, y, config.textureKey ?? this.constructor.textureKey);
+    const spriteConfig = this.constructor.spriteConfig ?? PAWN_SPRITE;
+    this.spriteConfig = spriteConfig;
+    this.animKeys = ensureEnemyAnimations(scene, spriteConfig);
+    this.sprite = this.createSprite(x, y, spriteConfig);
   }
 
-  createSprite(x, y, textureKey) {
-    // Bilerek fizik sprite'ı değil, düz sprite kullanılıyor (bkz. dosya üstü performans notu)
-    const sprite = this.scene.add.sprite(x, y, textureKey);
+  createSprite(x, y, spriteConfig) {
+    const sprite = this.scene.add.sprite(x, y, spriteConfig.idleTexture, 0);
     sprite.setDepth(9);
+
+    const scale = spriteConfig.visualSize / spriteConfig.frameHeight;
+    sprite.setScale(scale);
+
+    sprite.play(this.animKeys.idle);
+    sprite.on(Phaser.Animations.Events.ANIMATION_COMPLETE, this.handleAnimationComplete, this);
+
     return sprite;
+  }
+
+  handleAnimationComplete(animation) {
+    if (animation.key !== this.animKeys.attack) {
+      return;
+    }
+
+    this.isAttackAnimating = false;
+    this.refreshMovementAnimation();
   }
 
   get x() {
@@ -106,12 +101,6 @@ export default class Enemy {
     return this.sprite.y;
   }
 
-  /**
-   * @param {number} time - this.scene.time.now
-   * @param {number} delta - son frame'den geçen ms
-   * @param {import('./Player.js').default} player
-   * @param {import('./buildings/Building.js').default[]} [blockers] - blocksMovement=true olan binalar (Wall)
-   */
   update(time, delta, player, blockers) {
     if (!this.isAlive) {
       return;
@@ -126,21 +115,18 @@ export default class Enemy {
       this.blockedBy = null;
       this.wander(time, delta, blockers);
     }
+
+    this.refreshMovementAnimation();
   }
 
-  /**
-   * Oyuncu kovalama menzili içindeyken ne yapılacağını belirler. Varsayılan davranış:
-   * attackRange'e girince dur (CombatSystem hasar mantığını yönetir), değilse yaklaş.
-   * Alt sınıflar (örn. RangedEnemy) farklı bir yaklaşma/kaçınma davranışı için bunu override eder.
-   */
   updateCombatMovement(distanceToPlayer, player, delta, blockers) {
     if (distanceToPlayer <= this.attackRange) {
       this.state = EnemyState.ATTACK;
       this.blockedBy = null;
+      this.isMoving = false;
+      this.faceToward(player.x, player.y);
     } else {
       this.moveToward(player.x, player.y, this.moveSpeed, delta, blockers);
-      // moveToward sırasında bir duvara denk gelmiş olabilir; öyleyse "attack" say
-      // (CombatSystem duvara saldırmayı deneyecek)
       this.state = this.blockedBy ? EnemyState.ATTACK : EnemyState.CHASE;
     }
   }
@@ -150,13 +136,11 @@ export default class Enemy {
     this.moveAtAngle(angle, speed, delta, blockers);
   }
 
-  /** RangedEnemy gibi mesafe koruyan (kiting) tipler için: verilen noktadan uzaklaşan hareket */
   moveAway(awayFromX, awayFromY, speed, delta, blockers) {
     const angle = Phaser.Math.Angle.Between(awayFromX, awayFromY, this.x, this.y);
     this.moveAtAngle(angle, speed, delta, blockers);
   }
 
-  /** moveToward/moveAway'in paylaştığı ortak hareket: blocker kontrolü + dünya sınırı clamp'i */
   moveAtAngle(angle, speed, delta, blockers) {
     const distance = (speed * delta) / 1000;
 
@@ -166,23 +150,68 @@ export default class Enemy {
     const blocker = this.findBlockingBuilding(newX, newY, blockers);
 
     if (blocker) {
-      // Duvara girmeye çalışıyor: hareketi durdur, saldırı hedefi olarak işaretle
       this.blockedBy = blocker;
+      this.isMoving = false;
       newX = this.sprite.x;
       newY = this.sprite.y;
     } else {
       this.blockedBy = null;
+      this.isMoving = distance > 0.01;
     }
 
-    // Dünya sınırlarının dışına gezinerek/kovalayarak çıkmasını önle (kenara yakın spawn'lar için)
     this.sprite.x = Phaser.Math.Clamp(newX, 0, WORLD_WIDTH);
     this.sprite.y = Phaser.Math.Clamp(newY, 0, WORLD_HEIGHT);
 
-    // Gerçek animasyon gelene kadar basit bir yön göstergesi: sprite'ı hareket açısına döndür
-    this.sprite.rotation = angle;
+    this.updateFacingFromAngle(angle);
   }
 
-  /** Verilen konuma hareket etmek, blocksMovement=true olan bir binaya çarpar mı? */
+  updateFacingFromAngle(angle) {
+    // cos < 0 → sola bakıyor
+    const faceLeft = Math.cos(angle) < -0.05;
+    const faceRight = Math.cos(angle) > 0.05;
+
+    if (faceLeft) {
+      this.facingLeft = true;
+    } else if (faceRight) {
+      this.facingLeft = false;
+    }
+
+    this.sprite.setFlipX(this.facingLeft);
+  }
+
+  faceToward(targetX, targetY) {
+    if (targetX < this.x) {
+      this.facingLeft = true;
+    } else if (targetX > this.x) {
+      this.facingLeft = false;
+    }
+
+    this.sprite.setFlipX(this.facingLeft);
+  }
+
+  refreshMovementAnimation() {
+    if (!this.isAlive || this.isAttackAnimating) {
+      return;
+    }
+
+    const desired = this.isMoving ? this.animKeys.run : this.animKeys.idle;
+
+    if (this.sprite.anims.currentAnim?.key !== desired) {
+      this.sprite.play(desired, true);
+    }
+  }
+
+  /** CombatSystem saldırı anında çağırır */
+  playAttackAnimation(targetX, targetY) {
+    if (!this.isAlive) {
+      return;
+    }
+
+    this.faceToward(targetX, targetY);
+    this.isAttackAnimating = true;
+    this.sprite.play(this.animKeys.attack, true);
+  }
+
   findBlockingBuilding(x, y, blockers) {
     if (!blockers || blockers.length === 0) {
       return null;
@@ -203,7 +232,6 @@ export default class Enemy {
     return null;
   }
 
-  /** Menzil dışındayken spawn noktası etrafında rastgele, robotik olmayan bir gezinme */
   wander(time, delta, blockers) {
     if (time >= this.nextWanderDecisionTime) {
       const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
@@ -211,8 +239,6 @@ export default class Enemy {
 
       this.wanderTargetX = this.spawnX + Math.cos(angle) * radius;
       this.wanderTargetY = this.spawnY + Math.sin(angle) * radius;
-
-      // Bir süre gezinip bir süre duracak - tamamen sürekli hareket robotik görünür
       this.nextWanderDecisionTime = time + Phaser.Math.Between(1500, 3500);
     }
 
@@ -222,14 +248,10 @@ export default class Enemy {
       this.moveToward(this.wanderTargetX, this.wanderTargetY, this.moveSpeed * ENEMY_WANDER_SPEED_FACTOR, delta, blockers);
     } else {
       this.blockedBy = null;
+      this.isMoving = false;
     }
   }
 
-  /**
-   * Faz 5: DifficultySystem çarpanını uygular (spawn anında + canlı düşmanlara yeniden).
-   * multiplier=1.3 => base health/attackDamage %30 artar. Base değerler üzerinden hesaplanır;
-   * aynı düşmana tekrar çağrılınca üst üste çarpılmaz (idempotent).
-   */
   scaleStats(multiplier) {
     const previousMaxHealth = this.maxHealth;
     const healthRatio = previousMaxHealth > 0 ? this.health / previousMaxHealth : 1;
@@ -240,7 +262,6 @@ export default class Enemy {
     this.attackDamage = Math.max(1, Math.round(this.baseAttackDamage * multiplier));
   }
 
-  /** CombatSystem tarafından çağrılır */
   takeDamage(amount) {
     if (!this.isAlive) {
       return;
@@ -259,17 +280,13 @@ export default class Enemy {
     }
 
     this.isAlive = false;
-
-    // GoldSystem bu event'i dinleyip aynı noktada altın spawn ediyor; Player de kill sayacını
-    // artırıyor (bkz. Player.handleEnemyDied). Enemy, bunların hiçbirinin varlığından
-    // haberdar değil (decoupled).
+    this.isAttackAnimating = false;
     this.scene.events.emit(GameEvents.ENEMY_DIED, { x: this.x, y: this.y, goldDrop: this.goldDrop });
-
     this.playDeathEffect();
   }
 
-  /** Küçük bir "pop" efekti: büyüyüp saydamlaşarak kaybolma - abrupt yok olmaktan daha tatmin edici */
   playDeathEffect() {
+    this.sprite.anims.stop();
     this.scene.tweens.add({
       targets: this.sprite,
       scale: this.sprite.scale * 1.4,
@@ -282,6 +299,7 @@ export default class Enemy {
 
   destroy() {
     if (this.sprite) {
+      this.sprite.off(Phaser.Animations.Events.ANIMATION_COMPLETE, this.handleAnimationComplete, this);
       this.sprite.destroy();
     }
   }

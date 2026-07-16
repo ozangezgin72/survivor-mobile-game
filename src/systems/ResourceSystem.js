@@ -42,7 +42,7 @@ export default class ResourceSystem {
       const y = Phaser.Math.Between(minY, maxY);
       const variant = Phaser.Math.Between(0, 1) === 0 ? 'tree' : 'rock';
 
-      this.nodes.push(new ResourceNode(this.scene, x, y, `resource-node-${variant}`));
+      this.nodes.push(new ResourceNode(this.scene, x, y, variant));
     }
   }
 
