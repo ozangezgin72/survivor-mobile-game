@@ -32,6 +32,11 @@ export const PLAYER_ATTACK_DAMAGE = 10;
 export const PLAYER_ATTACK_RANGE = 160; // menzilli otomatik saldırı - düşmanlardan daha uzak
 export const PLAYER_ATTACK_SPEED = 2; // saldırı/saniye
 
+// Tiny Swords Archer sprite sheet (kare 192x192); görsel ~eski 48px placeholder
+export const PLAYER_SPRITE_FRAME_SIZE = 192;
+export const PLAYER_VISUAL_SIZE = 48;
+export const PLAYER_SPRITE_SCALE = PLAYER_VISUAL_SIZE / PLAYER_SPRITE_FRAME_SIZE;
+
 // --- Düşman ayarları (Faz 2) ---
 export const ENEMY_MAX_HEALTH = 30;
 export const ENEMY_MOVE_SPEED = 90;
@@ -155,6 +160,14 @@ export const HUD_TOP_ZONE_HEIGHT = 230;
 export const CHUNK_SIZE = 800;
 export const CHUNK_GRID_COLS = WORLD_WIDTH / CHUNK_SIZE;
 export const CHUNK_GRID_ROWS = WORLD_HEIGHT / CHUNK_SIZE;
+
+// Tiny Swords Terrain/Tileset — 576x384 sheet, 64x64 kareler (9x6)
+export const TERRAIN_TILE_SIZE = 64;
+export const TERRAIN_SHEET_COLS = 9;
+/** Sol üst 3x3 çim bloğunun merkez dolgu karesi (col=1, row=1) */
+export const TERRAIN_GRASS_FILL_FRAME =
+  1 + 1 * TERRAIN_SHEET_COLS; // frame index 10
+export const TERRAIN_COLOR_VARIANTS = 5;
 
 // Bir chunk açmanın maliyeti: BASE * MULTIPLIER^(şimdiye kadar açılan ücretli chunk sayısı).
 // Yani her yeni açılan chunk, kendinden ÖNCEKİ açılan chunk'tan %20 daha pahalı olur.

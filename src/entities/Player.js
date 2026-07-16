@@ -9,13 +9,14 @@ import {
   PLAYER_LEVEL_UP_HEALTH_BONUS,
   PLAYER_LEVEL_UP_DAMAGE_BONUS,
   PLAYER_SPEED_PER_LEVEL,
+  PLAYER_SPRITE_SCALE,
+  PLAYER_VISUAL_SIZE,
 } from '../config/Constants.js';
 import { GameEvents } from '../config/Events.js';
 
 /**
  * Karakterin bakış/hareket yönü (pusula yönleri).
- * Şu an sadece son hareket yönünü takip etmek için kullanılıyor; animasyon sistemi
- * eklendiğinde (örn. "walk-down", "walk-up-left" animasyonları) bu değer okunacak.
+ * flipX için sol/sağ ayrımında kullanılır; Tiny Swords okçu sağa bakar.
  */
 export const Direction = {
   IDLE: 'idle',
@@ -29,8 +30,6 @@ export const Direction = {
   DOWN_RIGHT: 'down-right',
 };
 
-// atan2 sonucunun (derece, 0-360 normalize edilmiş) 45 derecelik dilimlere bölünmüş hali.
-// index sırası: 0=sağ, 45=aşağı-sağ, 90=aşağı, ... (Phaser'da y ekseni aşağı doğru pozitiftir)
 const DIRECTION_BY_OCTANT = [
   Direction.RIGHT,
   Direction.DOWN_RIGHT,
@@ -42,72 +41,105 @@ const DIRECTION_BY_OCTANT = [
   Direction.UP_RIGHT,
 ];
 
+const LEFT_FACING = new Set([Direction.LEFT, Direction.UP_LEFT, Direction.DOWN_LEFT]);
+
+const ANIM_IDLE = 'player-idle';
+const ANIM_RUN = 'player-run';
+const ANIM_SHOOT = 'player-shoot';
+
 /**
- * Oyuncu karakteri.
- *
- * Hareket (Faz 1) + savaş (Faz 2) burada birleşiyor. Gerçek saldırı/hasar mantığı
- * kasıtlı olarak burada değil, CombatSystem'de yönetiliyor; Player sadece kendi
- * state'ini (health, cooldown zamanı) tutuyor ve takeDamage/die ile buna izin veriyor.
- * Faz 5: seviye sistemi (öldürme sayısına bağlı otomatik level-up) de burada yaşıyor.
+ * Oyuncu karakteri — Tiny Swords Blue Archer sprite + idle/run/shoot animasyonları.
  */
 export default class Player {
   constructor(scene, x, y) {
     this.scene = scene;
 
-    // --- Hareket state'i ---
     this.speed = this.getSpeedForLevel(1);
-    this.direction = Direction.IDLE;
+    this.direction = Direction.RIGHT;
     this.isMoving = false;
+    this.facingLeft = false;
+    this.isAttackAnimating = false;
 
-    // --- Faz 2: Savaş sistemi ---
     this.isAlive = true;
     this.maxHealth = PLAYER_MAX_HEALTH;
     this.health = this.maxHealth;
     this.attackDamage = PLAYER_ATTACK_DAMAGE;
     this.attackRange = PLAYER_ATTACK_RANGE;
-    this.attackSpeed = PLAYER_ATTACK_SPEED; // saldırı/saniye
-    this.lastAttackTime = 0; // CombatSystem tarafından okunup güncellenir
+    this.attackSpeed = PLAYER_ATTACK_SPEED;
+    this.lastAttackTime = 0;
 
-    // --- Faz 2: Altın (düşman öldürmekten gelir, inşa maliyetlerinde harcanır) ---
     this.gold = 0;
-
-    // --- Faz 3: Kaynak (maden/ağaç node'larından toplanır) - altından ayrı bir para birimi.
-    // Şu an için harcanacağı somut bir sistem yok; ileride üst seviye bina/yükseltmelerde
-    // kullanılmak üzere şimdiden takip ediliyor.
     this.resources = 0;
 
-    // --- Faz 5: Seviye sistemi - her PLAYER_KILLS_PER_LEVEL öldürmede bir seviye atlanır ---
     this.level = 1;
     this.killCount = 0;
-    // TODO(faz-6+): Daha kademeli bir XP eğrisi gerekirse (öldürme başına sabit "1" yerine
-    // düşman tipine göre değişen puanlar) bu alan o zaman kullanılabilir.
     this.experience = 0;
 
+    Player.createAnimations(scene);
     this.sprite = this.createSprite(x, y);
 
-    // Kill sayacı: hangi düşman öldüyse (oyuncu mu kule mi öldürdü ayrımı yapmadan,
-    // basitlik için) ENEMY_DIED event'i sayılır. bkz. handleEnemyDied.
     this.handleEnemyDied = this.handleEnemyDied.bind(this);
     this.scene.events.on(GameEvents.ENEMY_DIED, this.handleEnemyDied);
   }
 
+  static createAnimations(scene) {
+    if (scene.anims.exists(ANIM_IDLE)) {
+      return;
+    }
+
+    scene.anims.create({
+      key: ANIM_IDLE,
+      frames: scene.anims.generateFrameNumbers('archer-idle', { start: 0, end: 5 }),
+      frameRate: 6,
+      repeat: -1,
+    });
+
+    scene.anims.create({
+      key: ANIM_RUN,
+      frames: scene.anims.generateFrameNumbers('archer-run', { start: 0, end: 3 }),
+      frameRate: 10,
+      repeat: -1,
+    });
+
+    scene.anims.create({
+      key: ANIM_SHOOT,
+      frames: scene.anims.generateFrameNumbers('archer-shoot', { start: 0, end: 7 }),
+      frameRate: 12,
+      repeat: 0,
+    });
+  }
+
   createSprite(x, y) {
-    const sprite = this.scene.physics.add.sprite(x, y, 'player-placeholder');
+    const sprite = this.scene.physics.add.sprite(x, y, 'archer-idle', 0);
     sprite.setCollideWorldBounds(true);
     sprite.setDepth(10);
+    sprite.setScale(PLAYER_SPRITE_SCALE);
 
-    // Placeholder texture bir daire olduğu için fiziksel gövdeyi de daireye göre ortala
-    const radius = sprite.width / 2.4;
-    sprite.body.setCircle(radius, sprite.width / 2 - radius, sprite.height / 2 - radius);
+    // Mantıksal çarpışma ~eski 48px placeholder; texture 192px olduğu için unscaled radius
+    const worldRadius = PLAYER_VISUAL_SIZE / 2.4;
+    const unscaledRadius = worldRadius / PLAYER_SPRITE_SCALE;
+    sprite.body.setCircle(
+      unscaledRadius,
+      sprite.width / 2 - unscaledRadius,
+      sprite.height / 2 - unscaledRadius,
+    );
+
+    sprite.play(ANIM_IDLE);
+    sprite.on(Phaser.Animations.Events.ANIMATION_COMPLETE, this.handleAnimationComplete, this);
 
     return sprite;
   }
 
+  handleAnimationComplete(animation) {
+    if (animation.key !== ANIM_SHOOT) {
+      return;
+    }
+
+    this.isAttackAnimating = false;
+    this.refreshMovementAnimation();
+  }
+
   /**
-   * Karakteri verilen yön vektörüne göre sabit hızda hareket ettirir.
-   * Vektör normalize edilmemiş olabilir (örn. joystick force'u); burada normalize edilir,
-   * bu sayede "hız sabit olsun" gereksinimi joystick ne kadar itilirse itilsin korunur.
-   *
    * @param {{x: number, y: number}} moveVector
    */
   move(moveVector) {
@@ -129,16 +161,59 @@ export default class Player {
     this.sprite.body.setVelocity(normalizedX * this.speed, normalizedY * this.speed);
     this.isMoving = true;
     this.direction = Player.vectorToDirection(normalizedX, normalizedY);
+    this.updateFacingFromDirection(this.direction);
+    this.refreshMovementAnimation();
   }
 
-  /** Karakteri anında durdurur (parmak kaldırıldığında / tuş bırakıldığında çağrılır) */
   stop() {
     this.sprite.body.setVelocity(0, 0);
     this.isMoving = false;
-    this.direction = Direction.IDLE;
+    this.refreshMovementAnimation();
   }
 
-  /** CombatSystem tarafından çağrılır; düşman hasarını uygular ve HUD'ı bilgilendirir */
+  updateFacingFromDirection(direction) {
+    if (direction === Direction.IDLE || direction === Direction.UP || direction === Direction.DOWN) {
+      return;
+    }
+
+    this.facingLeft = LEFT_FACING.has(direction);
+    this.sprite.setFlipX(this.facingLeft);
+  }
+
+  /** Hedefe bakacak şekilde flip (saldırı anında) */
+  faceToward(targetX, targetY) {
+    if (targetX < this.x) {
+      this.facingLeft = true;
+    } else if (targetX > this.x) {
+      this.facingLeft = false;
+    }
+
+    this.sprite.setFlipX(this.facingLeft);
+  }
+
+  refreshMovementAnimation() {
+    if (!this.isAlive || this.isAttackAnimating) {
+      return;
+    }
+
+    const desired = this.isMoving ? ANIM_RUN : ANIM_IDLE;
+
+    if (this.sprite.anims.currentAnim?.key !== desired) {
+      this.sprite.play(desired, true);
+    }
+  }
+
+  /** CombatSystem oyuncu saldırdığında çağırır */
+  playAttackAnimation(targetX, targetY) {
+    if (!this.isAlive) {
+      return;
+    }
+
+    this.faceToward(targetX, targetY);
+    this.isAttackAnimating = true;
+    this.sprite.play(ANIM_SHOOT, true);
+  }
+
   takeDamage(amount) {
     if (!this.isAlive) {
       return;
@@ -158,11 +233,12 @@ export default class Player {
     }
 
     this.isAlive = false;
+    this.isAttackAnimating = false;
     this.stop();
+    this.sprite.anims.stop();
     this.scene.events.emit(GameEvents.PLAYER_DIED);
   }
 
-  /** GoldSystem (düşman öldürme) tarafından çağrılır */
   addGold(amount) {
     this.gold += amount;
     this.scene.events.emit(GameEvents.PLAYER_GOLD_CHANGED, this.gold);
@@ -172,25 +248,18 @@ export default class Player {
     return this.scene.prestigeSystem?.getTotalPrestigePoints?.() ?? 0;
   }
 
-  /** Altın + prestij toplamı maliyeti karşılıyor mu (bina kurma) */
   canAfford(goldAmount) {
     return this.gold + this.getPrestigePoints() >= goldAmount;
   }
 
-  /** Sadece altın yeterli mi (prestij kullanılmadan) */
   canAffordGoldOnly(goldAmount) {
     return this.gold >= goldAmount;
   }
 
-  /** Altın yetmiyor ama prestij ile tamamlanabilir */
   needsPrestigeForGold(goldAmount) {
     return goldAmount > 0 && !this.canAffordGoldOnly(goldAmount) && this.canAfford(goldAmount);
   }
 
-  /**
-   * Önce altından, yetmezse prestijden düşer (bina kurma).
-   * Prestij harcanacaksa UI zaten mor uyarı göstermeli (BuildMenu onayı).
-   */
   spendGold(amount) {
     if (!this.canAfford(amount)) {
       return false;
@@ -207,7 +276,6 @@ export default class Player {
     if (fromPrestige > 0) {
       const paid = this.scene.prestigeSystem?.spendPrestigePoints(fromPrestige);
       if (!paid) {
-        // Prestij düşüşü başarısızsa altını geri ver (atomik tutarlılık)
         this.gold += fromGold;
         this.scene.events.emit(GameEvents.PLAYER_GOLD_CHANGED, this.gold);
         return false;
@@ -217,7 +285,6 @@ export default class Player {
     return true;
   }
 
-  /** Chunk açma vb. — prestij kullanılmaz, sadece altın */
   spendGoldOnly(amount) {
     if (!this.canAffordGoldOnly(amount)) {
       return false;
@@ -228,13 +295,11 @@ export default class Player {
     return true;
   }
 
-  /** ResourceSystem (kaynak node'undan toplama) tarafından çağrılır */
   addResources(amount) {
     this.resources += amount;
     this.scene.events.emit(GameEvents.PLAYER_RESOURCES_CHANGED, this.resources);
   }
 
-  /** Kaynak + prestij toplamı (yükseltme) */
   canAffordResources(amount) {
     return this.resources + this.getPrestigePoints() >= amount;
   }
@@ -247,7 +312,6 @@ export default class Player {
     return amount > 0 && !this.canAffordResourcesOnly(amount) && this.canAffordResources(amount);
   }
 
-  /** Önce kaynak, yetmezse prestij */
   spendResources(amount) {
     if (!this.canAffordResources(amount)) {
       return false;
@@ -273,11 +337,6 @@ export default class Player {
     return true;
   }
 
-  /**
-   * Her düşman ölümünde (kim öldürdüğüne bakılmaksızın - oyuncu ya da bir kule) çağrılır.
-   * Basitlik için "kimin attığı kurşun öldürdü" ayrımı yapılmıyor; her ölüm oyuncunun
-   * ilerlemesine katkı sağlıyor.
-   */
   handleEnemyDied() {
     this.killCount += 1;
 
@@ -289,7 +348,7 @@ export default class Player {
   levelUp() {
     this.level += 1;
     this.maxHealth += PLAYER_LEVEL_UP_HEALTH_BONUS;
-    this.health = this.maxHealth; // seviye atlamak küçük bir ödül gibi hissettirsin - can da tam dolsun
+    this.health = this.maxHealth;
     this.attackDamage += PLAYER_LEVEL_UP_DAMAGE_BONUS;
     this.speed = this.getSpeedForLevel(this.level);
 
@@ -297,12 +356,10 @@ export default class Player {
     this.scene.events.emit(GameEvents.PLAYER_HEALTH_CHANGED, this.health, this.maxHealth);
   }
 
-  /** Seviyeye göre hareket hızı: her seviye temel hıza +PLAYER_SPEED_PER_LEVEL oranında ekler */
   getSpeedForLevel(level) {
     return Math.round(PLAYER_SPEED * (1 + (level - 1) * PLAYER_SPEED_PER_LEVEL));
   }
 
-  /** Normalize edilmiş bir (x, y) vektörünü 8 yönlü pusula değerine çevirir */
   static vectorToDirection(x, y) {
     if (Math.abs(x) < 0.01 && Math.abs(y) < 0.01) {
       return Direction.IDLE;
@@ -325,6 +382,7 @@ export default class Player {
 
   destroy() {
     this.scene.events.off(GameEvents.ENEMY_DIED, this.handleEnemyDied);
+    this.sprite.off(Phaser.Animations.Events.ANIMATION_COMPLETE, this.handleAnimationComplete, this);
     this.sprite.destroy();
   }
 }

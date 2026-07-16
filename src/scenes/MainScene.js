@@ -21,8 +21,6 @@ import ScoreSystem from '../systems/ScoreSystem.js';
 import SaveSystem, { BUILDING_BY_ID, DEFAULT_SAVE_SLOT } from '../systems/SaveSystem.js';
 import PrestigePrompt from '../ui/PrestigePrompt.js';
 import {
-  createGroundTexture,
-  createPlayerTexture,
   createEnemyTexture,
   createGoldTexture,
   createArcherTowerTexture,
@@ -42,9 +40,17 @@ import {
   CHUNK_GRID_ROWS,
   PLAYER_ATTACK_DAMAGE,
   PLAYER_LEVEL_UP_DAMAGE_BONUS,
+  PLAYER_SPRITE_FRAME_SIZE,
+  TERRAIN_TILE_SIZE,
+  TERRAIN_COLOR_VARIANTS,
   AUTO_SAVE_INTERVAL,
 } from '../config/Constants.js';
 import { GameEvents } from '../config/Events.js';
+
+const ARCHER_SPRITE_DIR =
+  'assets/sprites/Tiny Swords (Free Pack)/Units/Blue Units/Archer';
+
+const TERRAIN_DIR = 'assets/sprites/Tiny Swords (Free Pack)/Terrain/Tileset';
 
 /**
  * Oyunun ana sahnesi.
@@ -70,6 +76,25 @@ export default class MainScene extends Phaser.Scene {
     this.loadedSaveData = data.loadedSaveData ?? null;
     this.currentSlotKey = data.slotKey ?? DEFAULT_SAVE_SLOT;
     this.prestigeBannerData = data.prestigeBanner ?? null;
+  }
+
+  preload() {
+    const frame = { frameWidth: PLAYER_SPRITE_FRAME_SIZE, frameHeight: PLAYER_SPRITE_FRAME_SIZE };
+
+    this.load.spritesheet('archer-idle', `${ARCHER_SPRITE_DIR}/Archer_Idle.png`, frame);
+    this.load.spritesheet('archer-run', `${ARCHER_SPRITE_DIR}/Archer_Run.png`, frame);
+    this.load.spritesheet('archer-shoot', `${ARCHER_SPRITE_DIR}/Archer_Shoot.png`, frame);
+    // Arrow 64x64 tek kare — ileride projectile için; şimdilik yükleniyor
+    this.load.spritesheet('arrow', `${ARCHER_SPRITE_DIR}/Arrow.png`, {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    // Tiny Swords terrain: 576x384, 64x64 kareler (9x6) — 5 renk varyantı
+    const tileFrame = { frameWidth: TERRAIN_TILE_SIZE, frameHeight: TERRAIN_TILE_SIZE };
+    for (let i = 1; i <= TERRAIN_COLOR_VARIANTS; i += 1) {
+      this.load.spritesheet(`terrain-color${i}`, `${TERRAIN_DIR}/Tilemap_color${i}.png`, tileFrame);
+    }
   }
 
   create() {
@@ -255,8 +280,7 @@ export default class MainScene extends Phaser.Scene {
   // --- Kurulum adımları ---
 
   createPlaceholderTextures() {
-    createGroundTexture(this);
-    createPlayerTexture(this);
+    // Zemin: Tiny Swords Tilemap_colorN (preload) — createGroundTexture kullanılmıyor
     createEnemyTexture(this);
     createGoldTexture(this);
 
@@ -277,15 +301,14 @@ export default class MainScene extends Phaser.Scene {
     // Fizik dünyasının sınırları: karakter (collideWorldBounds: true ile) bu alanın dışına çıkamaz
     this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
-    // Basit, tekrar eden dokulu zemin (gerçek tilemap/pixel-art tile'lar ileride gelecek)
-    this.ground = this.add.tileSprite(0, 0, WORLD_WIDTH, WORLD_HEIGHT, 'ground-tile');
-    this.ground.setOrigin(0, 0);
+    // Zemin artık FogOfWarSystem → Chunk.renderGroundTexture() ile chunk-bazlı çiziliyor
+    // (power seviyesine göre Tilemap_color1..5). Tek büyük tileSprite yok.
 
-    // Dünyanın bittiği yeri gözle görülür kılan kırmızı çerçeve (kamera/hareket sınırlarını
-    // test etmek için faydalı; gerçek harita sınırları/duvarlarla değişecek)
+    // Dünyanın bittiği yeri gözle görülür kılan kırmızı çerçeve
     this.worldBorder = this.add.rectangle(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.worldBorder.setOrigin(0, 0);
     this.worldBorder.setStrokeStyle(8, 0xff3b3b, 0.9);
+    this.worldBorder.setDepth(1);
   }
 
   createPlayer() {

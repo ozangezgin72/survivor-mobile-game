@@ -1,17 +1,31 @@
 import Phaser from 'phaser';
 import SaveSystem from '../systems/SaveSystem.js';
 import LeaderboardScreen from '../ui/LeaderboardScreen.js';
+import { createButton } from '../ui/UIButton.js';
+import {
+  UI_COLOR_PRIMARY,
+  UI_COLOR_PRIMARY_DARK,
+  UI_COLOR_BROWN,
+  UI_COLOR_BG_DARK,
+  UI_COLOR_BG_MID,
+  UI_COLOR_CREAM,
+  UI_COLOR_TEXT_DARK,
+  UI_COLOR_SUCCESS,
+  UI_COLOR_SUCCESS_DARK,
+  UI_COLOR_DANGER,
+  UI_COLOR_DANGER_DARK,
+  colorToCss,
+  ensureVerticalGradientTexture,
+} from '../config/UITheme.js';
 
 const PANEL_DEPTH = 5000;
 const SLOT_HEIGHT = 100;
 const SLOT_GAP = 12;
+const GRADIENT_KEY = 'menu-bg-gradient';
 
 /**
- * Oyun açılışında gösterilen ana menü + 3 slotlu kayıt seçim paneli.
- *
- * Tek "OYNA" butonu: slot paneli açar.
- * Dolu slot → Yükle (+ Sil, çift tık onay)
- * Boş slot → Yeni Oyun
+ * Ana menü + 3 slotlu kayıt paneli.
+ * Sıcak tonlu flat modern UI (UITheme + UIButton) — önce burada deneniyor.
  */
 export default class MenuScene extends Phaser.Scene {
   constructor() {
@@ -28,65 +42,65 @@ export default class MenuScene extends Phaser.Scene {
     this.handleResize = this.handleResize.bind(this);
     this.scale.on('resize', this.handleResize);
 
-    this.background = this.add.rectangle(0, 0, 0, 0, 0x101820);
-
-    this.titleText = this.add.text(0, 0, 'SURVIVOR\nKINGDOM', {
-      fontSize: '52px',
-      fontStyle: 'bold',
-      color: '#ffd54f',
-      align: 'center',
-      stroke: '#000000',
-      strokeThickness: 6,
-    });
-    this.titleText.setOrigin(0.5, 0.5);
-
+    this.createBackground();
+    this.createTitle();
     this.createPlayButton();
     this.createLeaderboardButton();
     this.repositionForNewScale();
   }
 
-  createPlayButton() {
-    const buttonWidth = 280;
-    const buttonHeight = 72;
+  createBackground() {
+    const w = this.scale.width;
+    const h = this.scale.height;
+    ensureVerticalGradientTexture(this, GRADIENT_KEY, w, h, UI_COLOR_BG_MID, UI_COLOR_BG_DARK);
+    this.background = this.add.image(w / 2, h / 2, GRADIENT_KEY);
+    this.background.setDisplaySize(w, h);
+    this.background.setDepth(0);
+  }
 
-    this.playButtonBackground = this.add.rectangle(0, 0, buttonWidth, buttonHeight, 0x1b5e20, 0.95);
-    this.playButtonBackground.setStrokeStyle(3, 0xaed581, 1);
-    this.playButtonBackground.setInteractive({ useHandCursor: true });
-
-    this.playButtonLabel = this.add.text(0, 0, 'OYNA', {
-      fontSize: '32px',
+  createTitle() {
+    this.titleText = this.add.text(0, 0, 'SURVIVOR\nKINGDOM', {
+      fontSize: '58px',
       fontStyle: 'bold',
-      color: '#ffffff',
+      color: colorToCss(UI_COLOR_PRIMARY),
+      align: 'center',
+      stroke: colorToCss(UI_COLOR_BROWN),
+      strokeThickness: 10,
+      shadow: {
+        offsetX: 0,
+        offsetY: 6,
+        color: '#1a0c06',
+        blur: 0,
+        stroke: true,
+        fill: true,
+      },
     });
-    this.playButtonLabel.setOrigin(0.5, 0.5);
+    this.titleText.setOrigin(0.5, 0.5);
+    this.titleText.setDepth(5);
+  }
 
-    this.playButtonBackground.on('pointerover', () => this.playButtonBackground.setFillStyle(0x2e7d32, 0.95));
-    this.playButtonBackground.on('pointerout', () => this.playButtonBackground.setFillStyle(0x1b5e20, 0.95));
-    this.playButtonBackground.on('pointerdown', () => this.openSlotPanel());
+  createPlayButton() {
+    this.playButton = createButton(this, 0, 0, 300, 76, 'OYNA', {
+      onClick: () => this.openSlotPanel(),
+      fillColor: UI_COLOR_PRIMARY,
+      shadowColor: UI_COLOR_PRIMARY_DARK,
+      fontSize: 34,
+      depth: 10,
+      shadowOffset: 6,
+      cornerRadius: 20,
+    });
   }
 
   createLeaderboardButton() {
-    const buttonWidth = 280;
-    const buttonHeight = 56;
-
-    this.leaderboardButtonBackground = this.add.rectangle(0, 0, buttonWidth, buttonHeight, 0x283593, 0.95);
-    this.leaderboardButtonBackground.setStrokeStyle(3, 0x9fa8da, 1);
-    this.leaderboardButtonBackground.setInteractive({ useHandCursor: true });
-
-    this.leaderboardButtonLabel = this.add.text(0, 0, 'LİDERLİK TABLOSU', {
-      fontSize: '22px',
-      fontStyle: 'bold',
-      color: '#ffffff',
+    this.leaderboardButton = createButton(this, 0, 0, 300, 60, 'LİDERLİK TABLOSU', {
+      onClick: () => this.openLeaderboard(),
+      fillColor: UI_COLOR_PRIMARY,
+      shadowColor: UI_COLOR_PRIMARY_DARK,
+      fontSize: 22,
+      depth: 10,
+      shadowOffset: 5,
+      cornerRadius: 18,
     });
-    this.leaderboardButtonLabel.setOrigin(0.5, 0.5);
-
-    this.leaderboardButtonBackground.on('pointerover', () =>
-      this.leaderboardButtonBackground.setFillStyle(0x3949ab, 0.95),
-    );
-    this.leaderboardButtonBackground.on('pointerout', () =>
-      this.leaderboardButtonBackground.setFillStyle(0x283593, 0.95),
-    );
-    this.leaderboardButtonBackground.on('pointerdown', () => this.openLeaderboard());
   }
 
   openLeaderboard() {
@@ -94,13 +108,11 @@ export default class MenuScene extends Phaser.Scene {
   }
 
   setPlayButtonVisible(visible) {
-    this.playButtonBackground.setVisible(visible);
-    this.playButtonLabel.setVisible(visible);
+    this.playButton.setVisible(visible);
   }
 
   setLeaderboardButtonVisible(visible) {
-    this.leaderboardButtonBackground.setVisible(visible);
-    this.leaderboardButtonLabel.setVisible(visible);
+    this.leaderboardButton.setVisible(visible);
   }
 
   openSlotPanel() {
@@ -133,7 +145,9 @@ export default class MenuScene extends Phaser.Scene {
 
   destroySlotPanelElementsOnly() {
     for (const element of this.slotPanelElements) {
-      element.destroy();
+      if (element?.destroy) {
+        element.destroy();
+      }
     }
     this.slotPanelElements = [];
   }
@@ -146,20 +160,22 @@ export default class MenuScene extends Phaser.Scene {
     const panelX = scaleWidth / 2;
     const panelY = scaleHeight * 0.55;
 
-    const overlay = this.add.rectangle(scaleWidth / 2, scaleHeight / 2, scaleWidth, scaleHeight, 0x000000, 0.65);
+    const overlay = this.add.rectangle(scaleWidth / 2, scaleHeight / 2, scaleWidth, scaleHeight, UI_COLOR_BG_DARK, 0.72);
     overlay.setDepth(PANEL_DEPTH);
     overlay.setInteractive();
     this.slotPanelElements.push(overlay);
 
-    const panel = this.add.rectangle(panelX, panelY, panelWidth, panelHeight, 0x1a2332, 0.98);
-    panel.setStrokeStyle(2, 0x90caf9, 1);
+    const panel = this.add.rectangle(panelX, panelY, panelWidth, panelHeight, UI_COLOR_CREAM, 0.98);
+    panel.setStrokeStyle(4, UI_COLOR_BROWN, 1);
     panel.setDepth(PANEL_DEPTH + 1);
     this.slotPanelElements.push(panel);
 
     const title = this.add.text(panelX, panelY - panelHeight / 2 + 28, 'Slot Seç', {
-      fontSize: '22px',
+      fontSize: '24px',
       fontStyle: 'bold',
-      color: '#ffffff',
+      color: colorToCss(UI_COLOR_TEXT_DARK),
+      stroke: colorToCss(UI_COLOR_CREAM),
+      strokeThickness: 2,
     });
     title.setOrigin(0.5, 0.5);
     title.setDepth(PANEL_DEPTH + 2);
@@ -172,26 +188,21 @@ export default class MenuScene extends Phaser.Scene {
       this.createSlotRow(slotInfo, panelX, slotsTop + index * (SLOT_HEIGHT + SLOT_GAP), panelWidth - 40);
     });
 
-    const backButton = this.add.rectangle(panelX, panelY + panelHeight / 2 - 36, 160, 44, 0x424242, 0.95);
-    backButton.setStrokeStyle(2, 0xbdbdbd, 1);
-    backButton.setDepth(PANEL_DEPTH + 2);
-    backButton.setInteractive({ useHandCursor: true });
-    backButton.on('pointerdown', () => this.closeSlotPanel());
-    this.slotPanelElements.push(backButton);
-
-    const backLabel = this.add.text(panelX, panelY + panelHeight / 2 - 36, 'Geri', {
-      fontSize: '18px',
-      fontStyle: 'bold',
-      color: '#ffffff',
+    const backButton = createButton(this, panelX, panelY + panelHeight / 2 - 36, 160, 44, 'Geri', {
+      onClick: () => this.closeSlotPanel(),
+      fillColor: UI_COLOR_BROWN,
+      shadowColor: 0x5d2e0c,
+      fontSize: 18,
+      depth: PANEL_DEPTH + 3,
+      shadowOffset: 4,
+      cornerRadius: 14,
     });
-    backLabel.setOrigin(0.5, 0.5);
-    backLabel.setDepth(PANEL_DEPTH + 3);
-    this.slotPanelElements.push(backLabel);
+    this.slotPanelElements.push(backButton);
   }
 
   createSlotRow(slotInfo, centerX, y, width) {
-    const row = this.add.rectangle(centerX, y, width, SLOT_HEIGHT, 0x263238, 0.95);
-    row.setStrokeStyle(2, 0x546e7a, 1);
+    const row = this.add.rectangle(centerX, y, width, SLOT_HEIGHT, 0xfff6e0, 0.95);
+    row.setStrokeStyle(3, UI_COLOR_BROWN, 0.85);
     row.setDepth(PANEL_DEPTH + 2);
     this.slotPanelElements.push(row);
 
@@ -201,59 +212,66 @@ export default class MenuScene extends Phaser.Scene {
 
     const summaryText = this.add.text(centerX - width / 2 + 16, y, summary, {
       fontSize: '15px',
-      color: '#ffffff',
+      color: colorToCss(UI_COLOR_TEXT_DARK),
       lineSpacing: 4,
+      fontStyle: 'bold',
     });
     summaryText.setOrigin(0, 0.5);
     summaryText.setDepth(PANEL_DEPTH + 3);
     this.slotPanelElements.push(summaryText);
 
     if (slotInfo.empty) {
-      this.createSmallButton(centerX + width / 2 - 150, y, 120, 40, 'Yeni Oyun', 0x1b5e20, 0xaed581, () => {
-        this.startNewGameInSlot(slotInfo.slotKey);
+      const btn = createButton(this, centerX + width / 2 - 150, y, 120, 40, 'Yeni Oyun', {
+        onClick: () => this.startNewGameInSlot(slotInfo.slotKey),
+        fillColor: UI_COLOR_SUCCESS,
+        shadowColor: UI_COLOR_SUCCESS_DARK,
+        fontSize: 14,
+        depth: PANEL_DEPTH + 3,
+        shadowOffset: 4,
+        cornerRadius: 12,
       });
+      this.slotPanelElements.push(btn);
       return;
     }
 
-    this.createSmallButton(centerX + width / 2 - 150, y - 18, 120, 36, 'Yükle', 0x1b5e20, 0xaed581, () => {
-      this.loadSlot(slotInfo.slotKey);
+    const loadBtn = createButton(this, centerX + width / 2 - 150, y - 18, 120, 36, 'Yükle', {
+      onClick: () => this.loadSlot(slotInfo.slotKey),
+      fillColor: UI_COLOR_SUCCESS,
+      shadowColor: UI_COLOR_SUCCESS_DARK,
+      fontSize: 14,
+      depth: PANEL_DEPTH + 3,
+      shadowOffset: 4,
+      cornerRadius: 12,
     });
+    this.slotPanelElements.push(loadBtn);
     this.createDeleteButton(centerX + width / 2 - 150, y + 22, 120, 36, slotInfo.slotKey);
   }
 
   createDeleteButton(x, y, width, height, slotKey) {
     const isPending = this.pendingDeleteSlotKey === slotKey;
     const label = isPending ? 'Emin misin?' : 'Sil';
-    const fill = isPending ? 0xb71c1c : 0x5d4037;
+    const fill = isPending ? UI_COLOR_DANGER : UI_COLOR_BROWN;
+    const shadow = isPending ? UI_COLOR_DANGER_DARK : 0x5d2e0c;
 
-    this.createSmallButton(x, y, width, height, label, fill, 0xef9a9a, () => {
-      if (this.pendingDeleteSlotKey === slotKey) {
-        this.saveSystem.deleteSlot(slotKey);
-        this.openSlotPanel();
-        return;
-      }
+    const btn = createButton(this, x, y, width, height, label, {
+      onClick: () => {
+        if (this.pendingDeleteSlotKey === slotKey) {
+          this.saveSystem.deleteSlot(slotKey);
+          this.openSlotPanel();
+          return;
+        }
 
-      this.pendingDeleteSlotKey = slotKey;
-      this.rebuildSlotPanelKeepingPending();
+        this.pendingDeleteSlotKey = slotKey;
+        this.rebuildSlotPanelKeepingPending();
+      },
+      fillColor: fill,
+      shadowColor: shadow,
+      fontSize: 14,
+      depth: PANEL_DEPTH + 3,
+      shadowOffset: 4,
+      cornerRadius: 12,
     });
-  }
-
-  createSmallButton(x, y, width, height, label, fillColor, strokeColor, onClick) {
-    const background = this.add.rectangle(x, y, width, height, fillColor, 0.95);
-    background.setStrokeStyle(2, strokeColor, 1);
-    background.setDepth(PANEL_DEPTH + 3);
-    background.setInteractive({ useHandCursor: true });
-    background.on('pointerdown', onClick);
-    this.slotPanelElements.push(background);
-
-    const text = this.add.text(x, y, label, {
-      fontSize: '14px',
-      fontStyle: 'bold',
-      color: '#ffffff',
-    });
-    text.setOrigin(0.5, 0.5);
-    text.setDepth(PANEL_DEPTH + 4);
-    this.slotPanelElements.push(text);
+    this.slotPanelElements.push(btn);
   }
 
   formatSavedAt(savedAt) {
@@ -293,19 +311,20 @@ export default class MenuScene extends Phaser.Scene {
     const scaleWidth = this.scale.width;
     const scaleHeight = this.scale.height;
 
+    ensureVerticalGradientTexture(this, GRADIENT_KEY, scaleWidth, scaleHeight, UI_COLOR_BG_MID, UI_COLOR_BG_DARK);
+    this.background.setTexture(GRADIENT_KEY);
     this.background.setPosition(scaleWidth / 2, scaleHeight / 2);
-    this.background.setSize(scaleWidth, scaleHeight);
-    this.titleText.setPosition(scaleWidth / 2, scaleHeight * 0.32);
+    this.background.setDisplaySize(scaleWidth, scaleHeight);
+
+    this.titleText.setPosition(scaleWidth / 2, scaleHeight * 0.3);
 
     if (this.slotPanelOpen) {
       this.rebuildSlotPanelKeepingPending();
       return;
     }
 
-    this.playButtonBackground.setPosition(scaleWidth / 2, scaleHeight * 0.52);
-    this.playButtonLabel.setPosition(scaleWidth / 2, scaleHeight * 0.52);
-    this.leaderboardButtonBackground.setPosition(scaleWidth / 2, scaleHeight * 0.62);
-    this.leaderboardButtonLabel.setPosition(scaleWidth / 2, scaleHeight * 0.62);
+    this.playButton.setPosition(scaleWidth / 2, scaleHeight * 0.52);
+    this.leaderboardButton.setPosition(scaleWidth / 2, scaleHeight * 0.62);
   }
 
   handleResize() {
@@ -315,5 +334,7 @@ export default class MenuScene extends Phaser.Scene {
   shutdown() {
     this.scale.off('resize', this.handleResize);
     this.leaderboardScreen?.destroy();
+    this.playButton?.destroy();
+    this.leaderboardButton?.destroy();
   }
 }

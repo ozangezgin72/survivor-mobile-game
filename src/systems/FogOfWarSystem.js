@@ -49,6 +49,7 @@ export default class FogOfWarSystem {
 
       for (let col = 0; col < CHUNK_GRID_COLS; col += 1) {
         const chunk = new Chunk(this.scene, col, row);
+        chunk.renderGroundTexture();
         chunk.createFogVisuals();
         rowChunks.push(chunk);
         this.chunks.push(chunk);
@@ -65,9 +66,7 @@ export default class FogOfWarSystem {
     const centerChunk = this.grid[centerRow][centerCol];
 
     centerChunk.isUnlocked = true;
-    centerChunk.destroy(); // görsel sisi (overlay/kilit ikonu) anında kaldır, tween'e gerek yok
-    centerChunk.overlay = null;
-    centerChunk.lockIcon = null;
+    centerChunk.clearFogVisualsImmediate();
 
     this.populateChunk(centerChunk);
   }

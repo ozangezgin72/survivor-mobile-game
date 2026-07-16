@@ -43,6 +43,19 @@ export function getChunkCostMultiplier(powerLevel) {
 }
 
 /**
+ * Power seviyesine göre Tilemap_colorN (1–5).
+ * Merkez=1 (canlı yeşil), köşe=5 (uzak ton). 4'ten büyük power → 5.
+ */
+export function getTerrainColorIndex(powerLevel) {
+  const clamped = Math.max(0, Math.min(4, Math.floor(powerLevel)));
+  return clamped + 1;
+}
+
+export function getTerrainTextureKey(powerLevel) {
+  return `terrain-color${getTerrainColorIndex(powerLevel)}`;
+}
+
+/**
  * Dünya koordinatından güç seviyesi.
  * @param {{ getChunkAt: (x: number, y: number) => { col: number, row: number } | null } | null} fogOfWarSystem
  */

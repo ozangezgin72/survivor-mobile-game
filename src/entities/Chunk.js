@@ -1,12 +1,13 @@
 import Phaser from 'phaser';
-import { CHUNK_SIZE, FOG_OVERLAY_COLOR, FOG_OVERLAY_ALPHA } from '../config/Constants.js';
+import { CHUNK_SIZE, FOG_OVERLAY_COLOR, FOG_OVERLAY_ALPHA, TERRAIN_GRASS_FILL_FRAME } from '../config/Constants.js';
+import { getChunkPowerLevel, getTerrainTextureKey } from '../utils/ChunkPower.js';
 
 /**
  * Haritanın mantıksal olarak bölündüğü kare bir "bölge" (chunk).
  *
  * Kendi başına davranış içermez; sadece grid pozisyonunu (col/row), dünya koordinatlarını,
- * kilit durumunu ve sis görselini (overlay + kilit ikonu) tutar. Açma/kilitleme kuralları
- * (komşuluk, maliyet vb.) FogOfWarSystem'de yaşar.
+ * kilit durumunu, zemin dokusunu ve sis görselini tutar. Açma/kilitleme kuralları
+ * FogOfWarSystem'de yaşar.
  */
 export default class Chunk {
   constructor(scene, col, row) {
@@ -14,15 +15,39 @@ export default class Chunk {
     this.col = col;
     this.row = row;
 
-    // Chunk'ın sol-üst köşesi (dünya koordinatı)
     this.x = col * CHUNK_SIZE;
     this.y = row * CHUNK_SIZE;
     this.centerX = this.x + CHUNK_SIZE / 2;
     this.centerY = this.y + CHUNK_SIZE / 2;
 
     this.isUnlocked = false;
+    this.ground = null;
     this.overlay = null;
     this.lockIcon = null;
+  }
+
+  /**
+   * Power seviyesine göre Tiny Swords Tilemap_colorN dolgu çimini tileSprite ile çizer.
+   * Kilitli chunk'larda da çizilir (sis üstte kaplar); unlock'ta sadece sis kalkar.
+   */
+  renderGroundTexture() {
+    if (this.ground) {
+      return;
+    }
+
+    const powerLevel = getChunkPowerLevel(this.col, this.row);
+    const textureKey = getTerrainTextureKey(powerLevel);
+
+    this.ground = this.scene.add.tileSprite(
+      this.x,
+      this.y,
+      CHUNK_SIZE,
+      CHUNK_SIZE,
+      textureKey,
+      TERRAIN_GRASS_FILL_FRAME,
+    );
+    this.ground.setOrigin(0, 0);
+    this.ground.setDepth(0);
   }
 
   /** Sisli/kilitli görünümü oluşturur: koyu yarı saydam overlay + kilit ikonu placeholder */
@@ -38,7 +63,7 @@ export default class Chunk {
     this.lockIcon.setDepth(16);
   }
 
-  /** Sis kalkar: overlay/kilit ikonu kısa bir fade ile kaybolur */
+  /** Sis kalkar: overlay/kilit ikonu kısa bir fade ile kaybolur (zemin kalır) */
   unlock() {
     this.isUnlocked = true;
 
@@ -63,24 +88,33 @@ export default class Chunk {
     });
   }
 
-  /** Bu nokta chunk'ın sınırlarının içinde mi? */
   containsPoint(x, y) {
     return x >= this.x && x < this.x + CHUNK_SIZE && y >= this.y && y < this.y + CHUNK_SIZE;
   }
 
-  /** Verilen noktadan chunk'ın en yakın kenarına olan mesafe (nokta içindeyse 0) */
   distanceToPoint(x, y) {
     const clampedX = Phaser.Math.Clamp(x, this.x, this.x + CHUNK_SIZE);
     const clampedY = Phaser.Math.Clamp(y, this.y, this.y + CHUNK_SIZE);
     return Phaser.Math.Distance.Between(x, y, clampedX, clampedY);
   }
 
-  destroy() {
+  /** Sis görsellerini kaldır (merkez chunk başlangıcı); zemin dokunulmaz */
+  clearFogVisualsImmediate() {
     if (this.overlay) {
       this.overlay.destroy();
+      this.overlay = null;
     }
     if (this.lockIcon) {
       this.lockIcon.destroy();
+      this.lockIcon = null;
     }
+  }
+
+  destroy() {
+    if (this.ground) {
+      this.ground.destroy();
+      this.ground = null;
+    }
+    this.clearFogVisualsImmediate();
   }
 }

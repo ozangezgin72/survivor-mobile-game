@@ -53,6 +53,7 @@ export default class CombatSystem {
     }
 
     this.player.lastAttackTime = time;
+    this.player.playAttackAnimation?.(target.x, target.y);
     this.resolveAttack(this.player, target, true);
   }
 
