@@ -10,4 +10,8 @@ export default defineConfig({
     host: true,
     port: 4173,
   },
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.js'],
+  },
 });

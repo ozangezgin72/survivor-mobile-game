@@ -4,13 +4,12 @@ import {
   CHUNK_SIZE,
   CHUNK_GRID_COLS,
   CHUNK_GRID_ROWS,
-  CHUNK_UNLOCK_BASE_COST,
-  CHUNK_UNLOCK_COST_MULTIPLIER,
   CHUNK_UNLOCK_PROMPT_DISTANCE,
   CHUNK_RESOURCE_NODES_PER_CHUNK,
   CHUNK_NODE_EDGE_MARGIN,
 } from '../config/Constants.js';
 import { getChunkPowerLevel } from '../utils/ChunkPower.js';
+import { getUnlockCost as calculateUnlockCost } from '../utils/UnlockCost.js';
 
 /**
  * Fog of War / harita genişletme sistemi.
@@ -138,7 +137,7 @@ export default class FogOfWarSystem {
 
   /** Sıradaki chunk'ı açmanın maliyeti - her ücretli açılışta bir öncekinden %20 artar */
   getUnlockCost() {
-    return Math.round(CHUNK_UNLOCK_BASE_COST * CHUNK_UNLOCK_COST_MULTIPLIER ** this.unlockedCount);
+    return calculateUnlockCost(this.unlockedCount);
   }
 
   /** UnlockPrompt tarafından çağrılır. @returns {boolean} açma başarılı oldu mu */
